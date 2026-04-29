@@ -2050,107 +2050,112 @@
     }
 
     function DopingViz({ type }) {
+      const cols = 4, rows = 3;
       const atoms = [];
-      const cols = 5, rows = 4;
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          atoms.push({ x: 100 + c * 100, y: 70 + r * 80, r, c });
+          atoms.push({ x: 80 + c * 100, y: 70 + r * 80, r, c });
         }
       }
-      const dopantPos = { r: 1, c: 2 }; // 가운데에 불순물
+      const dopantPos = { r: 1, c: 1 };
+      const dopantIdx = dopantPos.r * cols + dopantPos.c;
+      const dop = atoms[dopantIdx];
+
+      // 자유 전자/정공의 이동 경로 (dopant 주변을 도는 형태)
+      const orbit = [
+        { dx: 35, dy: -25 },
+        { dx: 75, dy: 0 },
+        { dx: 35, dy: 35 },
+        { dx: -25, dy: 25 },
+        { dx: -35, dy: -15 },
+      ];
 
       return (
         <div className="bg-slate-50 rounded-2xl border-2 border-slate-200 p-4">
-          <svg viewBox="0 0 600 400" className="w-full" style={{ minHeight: 320 }}>
-            {/* 결합선 */}
+          <svg viewBox="0 0 460 270" className="w-full" preserveAspectRatio="xMidYMid meet">
+            {/* 결합선 - 인접 원자끼리 연결 */}
             {atoms.map((a, i) => {
               const lines = [];
-              // 오른쪽
               if (a.c < cols - 1) {
-                lines.push(<line key={`bond-r${i}`} x1={a.x + 18} y1={a.y} x2={a.x + 82} y2={a.y} stroke="#94a3b8" strokeWidth="1.5" />);
+                lines.push(<line key={`r${i}`} x1={a.x + 20} y1={a.y} x2={a.x + 80} y2={a.y}
+                  stroke="#94a3b8" strokeWidth="2" />);
               }
-              // 아래
               if (a.r < rows - 1) {
-                lines.push(<line key={`bond-d${i}`} x1={a.x} y1={a.y + 18} x2={a.x} y2={a.y + 62} stroke="#94a3b8" strokeWidth="1.5" />);
+                lines.push(<line key={`d${i}`} x1={a.x} y1={a.y + 20} x2={a.x} y2={a.y + 60}
+                  stroke="#94a3b8" strokeWidth="2" />);
               }
               return <g key={`b${i}`}>{lines}</g>;
             })}
 
             {/* 원자들 */}
             {atoms.map((a, i) => {
-              const isDopant = type !== "pure" && a.r === dopantPos.r && a.c === dopantPos.c;
-              const dopantColor = type === "n" ? "#2563eb" : "#dc2626";
-              const dopantLabel = type === "n" ? "P" : "B";
-              const dopantName = type === "n" ? "인" : "붕소";
+              const isDopant = type !== "pure" && i === dopantIdx;
+              const dColor = type === "n" ? "#2563eb" : "#dc2626";
+              const dLabel = type === "n" ? "P" : "B";
               return (
                 <g key={`a${i}`}>
-                  <circle cx={a.x} cy={a.y} r="18"
-                    fill={isDopant ? dopantColor : "#cbd5e1"}
-                    stroke={isDopant ? dopantColor : "#64748b"}
-                    strokeWidth="2.5" />
-                  <text x={a.x} y={a.y + 4} textAnchor="middle" fontSize="11" fontWeight="bold"
+                  <circle cx={a.x} cy={a.y} r="20"
+                    fill={isDopant ? dColor : "#cbd5e1"}
+                    stroke={isDopant ? dColor : "#64748b"} strokeWidth="2.5" />
+                  <text x={a.x} y={a.y + 5} textAnchor="middle" fontSize="13" fontWeight="bold"
                     fill={isDopant ? "white" : "#1e293b"} fontFamily="JetBrains Mono">
-                    {isDopant ? dopantLabel : "Si"}
+                    {isDopant ? dLabel : "Si"}
                   </text>
                   {isDopant && (
-                    <text x={a.x} y={a.y - 28} textAnchor="middle" fontSize="10" fontWeight="bold" fill={dopantColor}>
-                      {dopantName}
+                    <text x={a.x} y={a.y - 28} textAnchor="middle" fontSize="11"
+                      fontWeight="bold" fill={dColor}>
+                      {type === "n" ? "인 (전자 5개)" : "붕소 (전자 3개)"}
                     </text>
                   )}
                 </g>
               );
             })}
 
-            {/* N형: 자유 전자 표시 */}
+            {/* N형 자유 전자 - 그룹 transform 애니메이션 */}
             {type === "n" && (
               <g>
-                <circle cx={atoms[1*5+2].x + 32} cy={atoms[1*5+2].y - 30} r="10" fill="#1d4ed8">
-                  <animate attributeName="cx" values={`${atoms[1*5+2].x + 32};${atoms[1*5+2].x + 100};${atoms[1*5+2].x + 32}`}
-                    dur="3s" repeatCount="indefinite" />
-                  <animate attributeName="cy" values={`${atoms[1*5+2].y - 30};${atoms[1*5+2].y - 60};${atoms[1*5+2].y - 30}`}
-                    dur="3s" repeatCount="indefinite" />
-                </circle>
-                <text x={atoms[1*5+2].x + 32} y={atoms[1*5+2].y - 26} textAnchor="middle" fontSize="11"
-                  fontWeight="bold" fill="white" pointerEvents="none">
-                  <animate attributeName="x" values={`${atoms[1*5+2].x + 32};${atoms[1*5+2].x + 100};${atoms[1*5+2].x + 32}`}
-                    dur="3s" repeatCount="indefinite" />
-                  <animate attributeName="y" values={`${atoms[1*5+2].y - 26};${atoms[1*5+2].y - 56};${atoms[1*5+2].y - 26}`}
-                    dur="3s" repeatCount="indefinite" />
-                  −
-                </text>
-                <text x="500" y="350" fontSize="12" fontWeight="bold" fill="#1d4ed8">
-                  ↑ 남는 자유 전자(−)
-                </text>
+                <animateTransform attributeName="transform" type="translate"
+                  values={orbit.map(p => `${p.dx},${p.dy}`).concat([`${orbit[0].dx},${orbit[0].dy}`]).join(";")}
+                  dur="6s" repeatCount="indefinite" />
+                <circle cx={dop.x} cy={dop.y} r="11" fill="#1d4ed8"
+                  stroke="#1e3a8a" strokeWidth="1.5" />
+                <text x={dop.x} y={dop.y + 5} textAnchor="middle" fontSize="13"
+                  fontWeight="bold" fill="white" pointerEvents="none">−</text>
               </g>
             )}
 
-            {/* P형: 정공 표시 */}
+            {/* P형 정공 */}
             {type === "p" && (
               <g>
-                <circle cx={atoms[1*5+2].x + 32} cy={atoms[1*5+2].y - 30} r="10"
-                  fill="white" stroke="#dc2626" strokeWidth="2.5" strokeDasharray="3,2">
-                  <animate attributeName="cx" values={`${atoms[1*5+2].x + 32};${atoms[1*5+2].x - 30};${atoms[1*5+2].x + 32}`}
-                    dur="3s" repeatCount="indefinite" />
-                </circle>
-                <text x={atoms[1*5+2].x + 32} y={atoms[1*5+2].y - 26} textAnchor="middle" fontSize="11"
-                  fontWeight="bold" fill="#dc2626" pointerEvents="none">
-                  <animate attributeName="x" values={`${atoms[1*5+2].x + 32};${atoms[1*5+2].x - 30};${atoms[1*5+2].x + 32}`}
-                    dur="3s" repeatCount="indefinite" />
-                  +
-                </text>
-                <text x="500" y="350" fontSize="12" fontWeight="bold" fill="#dc2626">
-                  ↑ 빈 자리 = 정공(+)
-                </text>
+                <animateTransform attributeName="transform" type="translate"
+                  values={orbit.map(p => `${p.dx},${p.dy}`).concat([`${orbit[0].dx},${orbit[0].dy}`]).join(";")}
+                  dur="6s" repeatCount="indefinite" />
+                <circle cx={dop.x} cy={dop.y} r="11" fill="white"
+                  stroke="#dc2626" strokeWidth="2.5" strokeDasharray="3,2" />
+                <text x={dop.x} y={dop.y + 5} textAnchor="middle" fontSize="13"
+                  fontWeight="bold" fill="#dc2626" pointerEvents="none">+</text>
               </g>
             )}
-
-            {/* 안내 라벨 */}
-            <text x="20" y="380" fontSize="11" fill="#64748b" fontFamily="JetBrains Mono">
-              {type === "pure" ? "Si 원자들이 손 4개씩 맞잡아 안정 — 자유 전자 없음"
-                : type === "n" ? "5번째 전자가 결합에 못 들어가고 자유롭게 떠돎"
-                : "전자 1개가 모자라 빈 자리(정공)가 생김"}
-            </text>
           </svg>
+
+          {/* HTML 라벨 - SVG 바깥에 두어 레이아웃 안정 */}
+          <div className="mt-2 px-2 text-center">
+            {type === "pure" && (
+              <div className="text-sm text-slate-600">
+                <b className="text-slate-800">안정 상태</b> · Si 원자들이 4개의 손을 맞잡아 결합 — 자유 전자 없음
+              </div>
+            )}
+            {type === "n" && (
+              <div className="text-sm text-blue-700">
+                <b>⊖ 자유 전자(−) 1개 발생!</b> · 인 원자의 5번째 전자가 결합에 못 들어가고 자유롭게 떠돕니다
+              </div>
+            )}
+            {type === "p" && (
+              <div className="text-sm text-rose-700">
+                <b>⊕ 빈 자리(정공)(+) 1개 발생!</b> · 붕소는 전자가 3개뿐이라 한 자리가 비어 있어요
+              </div>
+            )}
+          </div>
         </div>
       );
     }
@@ -2456,234 +2461,965 @@
       );
     }
 
-    /* ----- 칩 만들기 게임 ----- */
-    function SemiGameTab() {
-      const [completed, setCompleted] = useState([]); // 완료한 step id들
-      const [errors, setErrors] = useState(0);
-      const [shake, setShake] = useState(null);
-      const [done, setDone] = useState(false);
+    /* ----- 칩 제조 시뮬레이션 게임 ----- */
 
-      // 셔플된 카드 순서 (한번만 셔플)
-      const [shuffled, setShuffled] = useState(() =>
-        [...PROCESS_STEPS].sort(() => Math.random() - 0.5)
+    function StepHeader({ num, title, subtitle, emoji }) {
+      return (
+        <div className="flex items-center justify-between mb-3 pb-3 border-b-2 border-slate-100 gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-3xl flex-shrink-0">{emoji}</span>
+            <div className="min-w-0">
+              <div className="font-mono text-xs font-extrabold text-violet-600 tracking-widest">STEP {num} / 8</div>
+              <h3 className="text-xl font-extrabold text-slate-900 truncate">{title}</h3>
+            </div>
+          </div>
+          <span className="font-mono text-[10px] text-slate-400 hidden sm:inline">{subtitle}</span>
+        </div>
       );
+    }
 
-      const currentStepNum = completed.length + 1; // 다음에 클릭해야 할 단계
+    function ResultBox({ success, message, onAdvance, onRetry, done }) {
+      if (success) {
+        return (
+          <div className="bg-emerald-50 border-2 border-emerald-400 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+            <span className="text-emerald-700 font-bold flex-1 min-w-[200px]">{message}</span>
+            {!done && onAdvance && (
+              <button onClick={onAdvance}
+                className="px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 whitespace-nowrap">
+                다음 단계 →
+              </button>
+            )}
+            {done && <span className="text-emerald-600 text-sm font-bold">✓ 완료됨</span>}
+          </div>
+        );
+      }
+      return (
+        <div className="bg-rose-50 border-2 border-rose-400 rounded-xl p-4">
+          <div className="text-rose-700 font-bold mb-3">{message}</div>
+          <button onClick={onRetry}
+            className="px-5 py-2 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700">
+            🔄 다시 시도
+          </button>
+        </div>
+      );
+    }
 
-      const handleClick = (step) => {
-        if (completed.includes(step.id) || done) return;
-        if (step.id === currentStepNum) {
-          const newCompleted = [...completed, step.id];
-          setCompleted(newCompleted);
-          if (newCompleted.length === 8) setDone(true);
-        } else {
-          setErrors(errors + 1);
-          setShake(step.id);
-          setTimeout(() => setShake(null), 600);
-        }
+    function GameProgress({ step, completed, setStep }) {
+      return (
+        <div className="bg-white rounded-2xl border-2 border-slate-200 p-3">
+          <div className="flex gap-1 flex-wrap">
+            {PROCESS_STEPS.map((s) => {
+              const isCompleted = completed.includes(s.id);
+              const isCurrent = step === s.id;
+              const accessible = isCompleted || s.id === step || s.id === completed.length + 1;
+              return (
+                <button key={s.id} onClick={() => accessible && setStep(s.id)} disabled={!accessible}
+                  className={`flex-1 min-w-[72px] py-2 rounded-lg flex flex-col items-center transition-all ${
+                    isCurrent ? "bg-violet-100 ring-2 ring-violet-500" :
+                    isCompleted ? "bg-emerald-50 hover:bg-emerald-100" :
+                    accessible ? "hover:bg-slate-50" : "opacity-40 cursor-not-allowed"}`}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm"
+                    style={{ background: isCompleted ? "#10b981" : isCurrent ? s.color : "#cbd5e1" }}>
+                    {isCompleted ? "✓" : s.id}
+                  </div>
+                  <div className={`text-[10px] font-bold text-center mt-1 leading-tight ${
+                    isCurrent ? "text-violet-700" : isCompleted ? "text-emerald-700" : "text-slate-500"}`}>
+                    {s.ko}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    function SemiGameTab() {
+      const initial = {
+        s1: { thickness: 150, sliced: false, ok: false },
+        s2: { temp: 500, time: 20, oxidized: false, ok: false },
+        s3: { offset: 30, exposed: false, ok: false },
+        s4: { etchant: null, time: 15, etched: false, ok: false },
+        s5: { dopant: null, doped: false, ok: false },
+        s6: { conns: [], wired: false, ok: false },
+        s7: { probed: [], tested: false, ok: false },
+        s8: { stage: 0, packaged: false, ok: false },
       };
+      const [step, setStep] = useState(1);
+      const [data, setData] = useState(initial);
+      const [completed, setCompleted] = useState([]);
 
-      const reset = () => {
-        setCompleted([]);
-        setErrors(0);
-        setDone(false);
-        setShuffled([...PROCESS_STEPS].sort(() => Math.random() - 0.5));
+      const update = (key, patch) =>
+        setData(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+      const advance = () => {
+        if (!completed.includes(step)) setCompleted([...completed, step]);
+        if (step < 8) setStep(step + 1);
       };
+      const reset = () => { setData(initial); setCompleted([]); setStep(1); };
+      const allDone = completed.length === 8;
+      const stepProps = (s) => ({
+        data: data[`s${s}`],
+        update: (p) => update(`s${s}`, p),
+        done: completed.includes(s),
+        onAdvance: advance,
+      });
 
       return (
         <div className="space-y-6">
           <div className="bg-violet-50 rounded-2xl p-5 border-2 border-violet-300">
             <div className="font-bold text-violet-800 mb-1 flex items-center gap-2">
-              <Sparkles className="w-5 h-5" /> 칩 만들기 게임
+              <Sparkles className="w-5 h-5" /> 칩 제조 시뮬레이션
             </div>
             <p className="text-slate-800 leading-relaxed">
-              아래 8개 카드를 <b>올바른 순서</b>로 클릭해 보세요!
-              순서가 맞으면 웨이퍼가 점점 칩으로 변해 가요. 틀리면 흔들리며 알려줄 거예요.
+              반도체 공장의 엔지니어가 되어 8단계를 직접 조작하며 칩을 만들어 보세요.
+              각 단계마다 적절한 조건을 맞춰야 다음으로 넘어갈 수 있어요.
             </p>
           </div>
 
-          {/* 진행 상태 */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white rounded-xl border-2 border-slate-200 p-4 text-center">
-              <div className="font-mono text-xs text-slate-500">진행</div>
-              <div className="text-2xl font-extrabold text-violet-700">{completed.length} / 8</div>
-            </div>
-            <div className="bg-white rounded-xl border-2 border-slate-200 p-4 text-center">
-              <div className="font-mono text-xs text-slate-500">실수</div>
-              <div className="text-2xl font-extrabold text-rose-600">{errors}</div>
-            </div>
-            <button onClick={reset}
-              className="bg-white rounded-xl border-2 border-slate-200 p-4 hover:border-violet-500 transition-colors flex flex-col items-center justify-center">
-              <RotateCcw className="w-5 h-5 text-violet-600 mb-1" />
-              <div className="text-xs font-bold text-violet-700">다시 섞기</div>
-            </button>
-          </div>
+          <GameProgress step={step} completed={completed} setStep={setStep} />
 
-          {/* 웨이퍼 진화 */}
           <Card>
-            <CardTitle num="🎮 진행 상황" title={done ? "🎉 완성! 첫 번째 반도체 칩을 만들었어요!" : `다음 단계: ${PROCESS_STEPS[Math.min(7, currentStepNum - 1)].ko}`} />
-            <div className="mt-5">
-              <WaferEvolution completed={completed} done={done} />
+            <CardTitle num="🔬 누적 결과" title={`${completed.length} / 8 단계 완료`} />
+            <div className="mt-4">
+              <GameWaferDisplay completed={completed} />
             </div>
           </Card>
 
-          {/* 카드 그리드 */}
           <Card>
-            <CardTitle num="📌 단계 카드" title="올바른 순서로 클릭하세요" />
-            <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
-              {shuffled.map((step) => {
-                const isDone = completed.includes(step.id);
-                const isShake = shake === step.id;
-                const order = isDone ? completed.indexOf(step.id) + 1 : null;
-                return (
-                  <button key={step.id} onClick={() => handleClick(step)}
-                    disabled={isDone || done}
-                    className={`relative p-4 rounded-xl border-2 text-left transition-all ${isDone ? "bg-emerald-50 border-emerald-400 opacity-90" : "bg-white border-slate-300 hover:border-violet-500 hover:shadow-md cursor-pointer"} ${isShake ? "animate-shake border-rose-500 bg-rose-50" : ""}`}>
-                    {isDone && (
-                      <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-emerald-500 text-white font-bold text-sm flex items-center justify-center">{order}</div>
-                    )}
-                    <div className="text-3xl mb-2">{step.icon}</div>
-                    <div className="font-extrabold text-slate-900">{step.ko}</div>
-                    <div className="text-[11px] font-mono text-slate-500 mt-0.5">{step.en.toUpperCase()}</div>
-                    <div className="text-xs text-slate-600 mt-2 leading-snug">{step.short}</div>
-                  </button>
-                );
-              })}
-            </div>
-            <style>{`
-              @keyframes shake {
-                0%, 100% { transform: translateX(0); }
-                20% { transform: translateX(-6px); }
-                40% { transform: translateX(6px); }
-                60% { transform: translateX(-4px); }
-                80% { transform: translateX(4px); }
-              }
-              .animate-shake { animation: shake 0.5s; }
-            `}</style>
+            {step === 1 && <GameStep1 {...stepProps(1)} />}
+            {step === 2 && <GameStep2 {...stepProps(2)} />}
+            {step === 3 && <GameStep3 {...stepProps(3)} />}
+            {step === 4 && <GameStep4 {...stepProps(4)} />}
+            {step === 5 && <GameStep5 {...stepProps(5)} />}
+            {step === 6 && <GameStep6 {...stepProps(6)} />}
+            {step === 7 && <GameStep7 {...stepProps(7)} />}
+            {step === 8 && <GameStep8 {...stepProps(8)} />}
           </Card>
 
-          {done && (
-            <div className="bg-gradient-to-r from-violet-100 to-amber-100 rounded-2xl p-6 border-2 border-violet-400">
-              <div className="text-center">
-                <div className="text-5xl mb-2">🎉</div>
-                <div className="text-2xl font-extrabold text-violet-900 mb-2">축하합니다!</div>
-                <p className="text-slate-800 leading-relaxed">
-                  반도체 8대 공정을 모두 정확한 순서로 완수했어요.<br />
-                  실수 횟수: <b className="text-rose-600">{errors}회</b>
-                </p>
-                <button onClick={reset}
-                  className="mt-4 px-6 py-2.5 bg-violet-600 text-white rounded-lg font-bold hover:bg-violet-700">
-                  다시 도전하기
-                </button>
-              </div>
-            </div>
+          {allDone && <GameComplete onReset={reset} />}
+        </div>
+      );
+    }
+
+    function GameWaferDisplay({ completed }) {
+      const has = (n) => completed.includes(n);
+      return (
+        <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl border-2 border-slate-300 p-4 overflow-hidden">
+          {has(8) ? (
+            <svg viewBox="0 0 600 200" className="w-full">
+              <g transform="translate(300, 100)">
+                <rect x="-110" y="-55" width="220" height="110" rx="10" fill="#1e293b" stroke="#0f172a" strokeWidth="2" />
+                <text x="0" y="-15" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#cbd5e1" fontFamily="JetBrains Mono">SCIENCE-LAB</text>
+                <text x="0" y="5" textAnchor="middle" fontSize="11" fill="#94a3b8" fontFamily="JetBrains Mono">CHIP-2026</text>
+                <text x="0" y="24" textAnchor="middle" fontSize="10" fill="#fbbf24" fontFamily="JetBrains Mono">★ Made by You ★</text>
+                {[...Array(8)].map((_, i) => (
+                  <g key={i}>
+                    <rect x={-90 + i * 24} y="55" width="6" height="18" fill="#94a3b8" />
+                    <rect x={-90 + i * 24} y="-73" width="6" height="18" fill="#94a3b8" />
+                  </g>
+                ))}
+              </g>
+              <text x="300" y="180" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#7c3aed">
+                ✨ 완성된 IC 칩 ✨
+              </text>
+            </svg>
+          ) : (
+            <svg viewBox="0 0 600 200" className="w-full">
+              <rect x="0" y="170" width="600" height="30" fill="#e2e8f0" />
+              {!has(1) && (
+                <text x="300" y="100" textAnchor="middle" fontSize="14" fill="#94a3b8" fontWeight="bold">
+                  🪨 실리콘 잉곳 (시작 재료) — 첫 단계를 완료하세요
+                </text>
+              )}
+              {has(1) && (
+                <g>
+                  <rect x="50" y="130" width="500" height="40" fill="#94a3b8" stroke="#475569" strokeWidth="2" />
+                  <text x="20" y="155" fontSize="10" fill="#475569" fontFamily="JetBrains Mono" fontWeight="bold">Si</text>
+                </g>
+              )}
+              {has(2) && (
+                <g>
+                  <rect x="50" y="115" width="500" height="15" fill="#3b82f6" opacity="0.6" stroke="#1d4ed8" strokeWidth="1" />
+                  <text x="555" y="125" fontSize="9" fill="#1d4ed8" fontFamily="JetBrains Mono" fontWeight="bold">SiO₂</text>
+                </g>
+              )}
+              {has(3) && !has(4) && (
+                <rect x="50" y="100" width="500" height="15" fill="#fbbf24" opacity="0.7" />
+              )}
+              {has(4) && (
+                <g>
+                  <rect x="50" y="115" width="500" height="15" fill="white" />
+                  {[80, 200, 320, 440].map((x, i) => (
+                    <rect key={i} x={x} y="115" width="60" height="15" fill="#3b82f6" opacity="0.6" />
+                  ))}
+                </g>
+              )}
+              {has(5) && (
+                <g>
+                  {[110, 230, 350, 470].map((x, i) => (
+                    <rect key={i} x={x} y="130" width="40" height="20" fill="#a855f7" opacity="0.7" />
+                  ))}
+                  <text x="555" y="145" fontSize="9" fill="#7c3aed" fontFamily="JetBrains Mono" fontWeight="bold">N</text>
+                </g>
+              )}
+              {has(6) && (
+                <g>
+                  <line x1="130" y1="115" x2="130" y2="80" stroke="#475569" strokeWidth="3" />
+                  <line x1="250" y1="115" x2="250" y2="80" stroke="#475569" strokeWidth="3" />
+                  <line x1="370" y1="115" x2="370" y2="80" stroke="#475569" strokeWidth="3" />
+                  <line x1="490" y1="115" x2="490" y2="80" stroke="#475569" strokeWidth="3" />
+                  <line x1="130" y1="80" x2="490" y2="80" stroke="#475569" strokeWidth="3" />
+                </g>
+              )}
+              {has(7) && (
+                <g>
+                  <text x="130" y="55" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#10b981">✓</text>
+                  <text x="250" y="55" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#10b981">✓</text>
+                  <text x="370" y="55" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#ef4444">✗</text>
+                  <text x="490" y="55" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#10b981">✓</text>
+                </g>
+              )}
+              <text x="20" y="30" fontSize="12" fontWeight="bold" fill="#7c3aed" fontFamily="JetBrains Mono">
+                {completed.length}/8 단계 완료
+              </text>
+            </svg>
           )}
         </div>
       );
     }
 
-    function WaferEvolution({ completed, done }) {
-      const stage = completed.length;
-      // 단계별 누적 시각화
+    function GameComplete({ onReset }) {
       return (
-        <div className="bg-slate-50 rounded-2xl border-2 border-slate-200 p-4">
-          <svg viewBox="0 0 600 240" className="w-full" style={{ minHeight: 200 }}>
-            {/* 배경 작업대 */}
-            <rect x="0" y="200" width="600" height="40" fill="#e2e8f0" />
+        <div className="bg-gradient-to-br from-violet-100 via-amber-100 to-emerald-100 rounded-2xl p-6 border-2 border-violet-400">
+          <div className="text-center">
+            <div className="text-6xl mb-3">🎉</div>
+            <div className="text-3xl font-extrabold text-violet-900 mb-3">반도체 마스터!</div>
+            <p className="text-slate-800 leading-relaxed mb-4">
+              축하합니다! 8단계 반도체 공정을 모두 직접 수행해서 칩을 만들었어요.<br />
+              이제 우리가 매일 사용하는 전자제품 속 반도체가 어떻게 만들어지는지 이해할 수 있죠?
+            </p>
+            <button onClick={onReset}
+              className="px-6 py-2.5 bg-violet-600 text-white rounded-lg font-bold hover:bg-violet-700">
+              🔄 다시 도전하기
+            </button>
+          </div>
+        </div>
+      );
+    }
 
-            {/* 1: 웨이퍼 등장 */}
-            {stage >= 1 && (
-              <g transform="translate(300,140)">
-                <ellipse cx="0" cy="0" rx="160" ry="35" fill="#cbd5e1" stroke="#475569" strokeWidth="2" />
-                <ellipse cx="0" cy="-3" rx="160" ry="32" fill="#e2e8f0" />
+    // ========== Step 1: 웨이퍼 제조 ==========
+    function GameStep1({ data, update, done, onAdvance }) {
+      const t = data.thickness;
+      const inRange = t >= 70 && t <= 90;
+      const handleSlice = () => update({ sliced: true, ok: inRange });
+      const reset = () => update({ thickness: 150, sliced: false, ok: false });
+
+      return (
+        <div>
+          <StepHeader num={1} title="웨이퍼 제조" subtitle="WAFER" emoji="💿" />
+          <p className="text-slate-700 mb-5 leading-relaxed">
+            실리콘 잉곳을 적당한 두께로 잘라 웨이퍼를 만드세요.
+            너무 얇으면 부서지고, 너무 두꺼우면 비효율적이에요.{" "}
+            <b className="text-violet-700">목표: 0.7 ~ 0.9 mm</b>
+          </p>
+          <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-4 mb-4">
+            <svg viewBox="0 0 500 170" className="w-full">
+              <rect x="40" y="55" width="180" height="60" fill="#94a3b8" stroke="#475569" strokeWidth="2" rx="4" />
+              <ellipse cx="40" cy="85" rx="6" ry="30" fill="#cbd5e1" stroke="#475569" strokeWidth="2" />
+              <text x="130" y="135" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#475569">실리콘 잉곳</text>
+              {!data.sliced && [...Array(Math.min(15, Math.floor(180 / Math.max(8, t/8))))].map((_, i) => (
+                <line key={i}
+                  x1={50 + (i + 1) * Math.max(8, t/8)} y1="55"
+                  x2={50 + (i + 1) * Math.max(8, t/8)} y2="115"
+                  stroke="#dc2626" strokeWidth="1" strokeDasharray="2,2" opacity="0.5" />
+              ))}
+              <text x="252" y="92" fontSize="28" fill="#7c3aed">→</text>
+              {data.sliced ? (
+                <g>
+                  <ellipse cx="380" cy="85" rx={Math.max(15, t/3.5)} ry={Math.min(50, t/3 + 25)}
+                    fill="#cbd5e1" stroke={inRange ? "#16a34a" : "#dc2626"} strokeWidth="2.5" />
+                  <text x="380" y="148" textAnchor="middle" fontSize="11" fontWeight="bold"
+                    fill={inRange ? "#16a34a" : "#dc2626"}>
+                    {inRange ? "완벽한 웨이퍼!" : t < 70 ? "너무 얇음 → 부서짐" : "너무 두꺼움"}
+                  </text>
+                </g>
+              ) : (
+                <text x="380" y="92" textAnchor="middle" fontSize="20" fill="#cbd5e1" fontWeight="bold">?</text>
+              )}
+            </svg>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border-2 border-slate-200 mb-4">
+            <div className="flex justify-between items-baseline mb-2">
+              <span className="font-bold text-slate-700">절단 두께</span>
+              <span className="font-mono font-extrabold text-2xl"
+                style={{ color: inRange ? "#16a34a" : "#dc2626" }}>
+                {(t/100).toFixed(2)} mm
+              </span>
+            </div>
+            <input type="range" min="20" max="300" value={t}
+              onChange={(e) => update({ thickness: Number(e.target.value), sliced: false })}
+              disabled={data.sliced && data.ok}
+              className="w-full" style={{ color: inRange ? "#16a34a" : "#dc2626" }} />
+            <div className="flex justify-between text-xs font-mono mt-1">
+              <span className="text-slate-500">0.2mm</span>
+              <span className="text-emerald-700 font-bold">★ 목표 0.7~0.9mm ★</span>
+              <span className="text-slate-500">3.0mm</span>
+            </div>
+          </div>
+          {!data.sliced && (
+            <button onClick={handleSlice}
+              className="w-full py-3.5 bg-violet-600 text-white font-extrabold rounded-xl hover:bg-violet-700 active:scale-[0.98] transition-all">
+              ✂️ 자르기!
+            </button>
+          )}
+          {data.sliced && data.ok && (
+            <ResultBox success message="✓ 완벽한 두께의 웨이퍼가 만들어졌어요!" onAdvance={onAdvance} done={done} />
+          )}
+          {data.sliced && !data.ok && (
+            <ResultBox message={t < 70 ? "❌ 너무 얇아 부서졌어요. 0.7~0.9mm로 맞춰 보세요." : "❌ 너무 두꺼워요. 0.7~0.9mm로 줄이세요."} onRetry={reset} />
+          )}
+        </div>
+      );
+    }
+
+    // ========== Step 2: 산화 ==========
+    function GameStep2({ data, update, done, onAdvance }) {
+      const tempOK = data.temp >= 950 && data.temp <= 1050;
+      const timeOK = data.time >= 30 && data.time <= 45;
+      const allOK = tempOK && timeOK;
+      const oxideHeight = data.oxidized ? Math.min(28, (data.temp / 60) * (data.time / 8)) : 0;
+      const handleStart = () => update({ oxidized: true, ok: allOK });
+      const reset = () => update({ temp: 500, time: 20, oxidized: false, ok: false });
+
+      return (
+        <div>
+          <StepHeader num={2} title="산화" subtitle="OXIDATION" emoji="🔥" />
+          <p className="text-slate-700 mb-5 leading-relaxed">
+            고온 산소 환경에서 웨이퍼 표면에 단단한 산화막(SiO₂)을 만드세요.
+            온도와 시간을 적절히 맞춰야 균일한 산화막이 생겨요.{" "}
+            <b className="text-violet-700">목표: 1000°C 부근, 30~45분</b>
+          </p>
+          <div className="bg-slate-900 rounded-xl border-2 border-slate-700 p-4 mb-4">
+            <svg viewBox="0 0 500 170" className="w-full">
+              <rect x="40" y="35" width="420" height="110" fill="#1e293b" stroke="#dc2626" strokeWidth="2" rx="8" />
+              <text x="250" y="28" textAnchor="middle" fontSize="11" fill="#fbbf24" fontFamily="JetBrains Mono" fontWeight="bold">🔥 산화 노 (Furnace)</text>
+              {data.temp > 600 && [...Array(8)].map((_, i) => (
+                <text key={i} x={70 + i * 50} y="62" fontSize={Math.min(13, 8 + data.temp/250)}
+                  fill="#3b82f6" opacity="0.7">O₂</text>
+              ))}
+              <rect x="100" y="115" width="300" height="15" fill="#94a3b8" stroke="#cbd5e1" strokeWidth="1" />
+              {data.oxidized && (
+                <rect x="100" y={115 - oxideHeight} width="300" height={oxideHeight}
+                  fill="#3b82f6" opacity="0.65" stroke="#1d4ed8" strokeWidth="1" />
+              )}
+              {data.oxidized && (
+                <text x="250" y="160" textAnchor="middle" fontSize="11" fontWeight="bold"
+                  fill={allOK ? "#10b981" : "#ef4444"}>
+                  {allOK ? "✓ 균일한 산화막 형성!" :
+                    !tempOK ? (data.temp < 950 ? "온도 부족 — 산화 안됨" : "과열 — 웨이퍼 손상") :
+                    (data.time < 30 ? "시간 부족 — 산화막 너무 얇음" : "시간 초과 — 산화막 과다")}
+                </text>
+              )}
+            </svg>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3 mb-4">
+            <div className="bg-slate-50 rounded-xl p-4 border-2 border-slate-200">
+              <div className="flex justify-between items-baseline mb-2">
+                <span className="font-bold text-slate-700 text-sm">🌡️ 온도</span>
+                <span className="font-mono font-extrabold text-xl" style={{ color: tempOK ? "#16a34a" : "#dc2626" }}>{data.temp}°C</span>
+              </div>
+              <input type="range" min="100" max="1500" step="50" value={data.temp}
+                onChange={(e) => update({ temp: Number(e.target.value), oxidized: false })}
+                disabled={data.oxidized && data.ok}
+                className="w-full" style={{ color: tempOK ? "#16a34a" : "#dc2626" }} />
+              <div className="text-xs text-emerald-700 font-bold text-center mt-1">목표: 950 ~ 1050°C</div>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4 border-2 border-slate-200">
+              <div className="flex justify-between items-baseline mb-2">
+                <span className="font-bold text-slate-700 text-sm">⏱️ 시간</span>
+                <span className="font-mono font-extrabold text-xl" style={{ color: timeOK ? "#16a34a" : "#dc2626" }}>{data.time}분</span>
+              </div>
+              <input type="range" min="5" max="90" step="5" value={data.time}
+                onChange={(e) => update({ time: Number(e.target.value), oxidized: false })}
+                disabled={data.oxidized && data.ok}
+                className="w-full" style={{ color: timeOK ? "#16a34a" : "#dc2626" }} />
+              <div className="text-xs text-emerald-700 font-bold text-center mt-1">목표: 30 ~ 45분</div>
+            </div>
+          </div>
+          {!data.oxidized && (
+            <button onClick={handleStart}
+              className="w-full py-3.5 bg-violet-600 text-white font-extrabold rounded-xl hover:bg-violet-700 active:scale-[0.98] transition-all">
+              🔥 산화 시작!
+            </button>
+          )}
+          {data.oxidized && data.ok && (
+            <ResultBox success message="✓ 균일한 산화막이 형성되었어요!" onAdvance={onAdvance} done={done} />
+          )}
+          {data.oxidized && !data.ok && (
+            <ResultBox message={`❌ ${!tempOK ? "온도가 적절치 않아요. " : ""}${!timeOK ? "시간이 적절치 않아요." : ""}`} onRetry={reset} />
+          )}
+        </div>
+      );
+    }
+
+    // ========== Step 3: 포토 (노광) ==========
+    function GameStep3({ data, update, done, onAdvance }) {
+      const inRange = data.offset >= 45 && data.offset <= 55;
+      const shift = (data.offset - 50) * 3;
+      const handleExpose = () => update({ exposed: true, ok: inRange });
+      const reset = () => update({ offset: 30, exposed: false, ok: false });
+
+      return (
+        <div>
+          <StepHeader num={3} title="포토 (노광)" subtitle="PHOTOLITHOGRAPHY" emoji="📸" />
+          <p className="text-slate-700 mb-5 leading-relaxed">
+            감광액 위에 마스크를 정확히 정렬해 자외선을 쪼이세요.
+            아주 조금만 어긋나도 회로가 잘못 그려져요.{" "}
+            <b className="text-violet-700">목표: 정렬 오차 ±5% 이내</b>
+          </p>
+          <div className="bg-slate-100 rounded-xl border-2 border-slate-300 p-4 mb-4">
+            <svg viewBox="0 0 500 200" className="w-full">
+              {[...Array(10)].map((_, i) => (
+                <line key={i} x1={70 + i * 40} y1="20" x2={70 + i * 40} y2="50"
+                  stroke="#facc15" strokeWidth="2" strokeDasharray="3,2" />
+              ))}
+              <text x="250" y="14" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#d97706">💡 자외선 (UV)</text>
+              <g transform={`translate(${shift}, 0)`}>
+                <rect x="80" y="55" width="340" height="20" fill="#1e293b" />
+                <rect x="120" y="55" width="40" height="20" fill="#facc15" />
+                <rect x="220" y="55" width="40" height="20" fill="#facc15" />
+                <rect x="320" y="55" width="40" height="20" fill="#facc15" />
               </g>
-            )}
+              <text x="430" y="68" fontSize="9" fontWeight="bold" fill="#1e293b" fontFamily="JetBrains Mono">마스크</text>
+              <line x1="250" y1="40" x2="250" y2="180" stroke="#10b981" strokeWidth="1.5" strokeDasharray="3,3" opacity="0.5" />
+              <text x="250" y="195" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#10b981">정렬 기준</text>
+              <rect x="80" y="105" width="340" height="15" fill="#fbbf24" opacity="0.7" stroke="#d97706" strokeWidth="1" />
+              {data.exposed && [120, 220, 320].map(x => (
+                <rect key={x} x={x + shift} y="105" width="40" height="15" fill="#facc15" stroke="#d97706" strokeWidth="1" />
+              ))}
+              <rect x="80" y="120" width="340" height="10" fill="#3b82f6" opacity="0.5" />
+              <rect x="80" y="130" width="340" height="40" fill="#94a3b8" />
+              {data.exposed && (
+                <text x="250" y="190" textAnchor="middle" fontSize="11" fontWeight="bold"
+                  fill={inRange ? "#10b981" : "#ef4444"}>
+                  {inRange ? "✓ 패턴이 정확히 새겨졌어요!" : `❌ ${Math.abs(data.offset - 50)}% 어긋남 — 회로 망가짐`}
+                </text>
+              )}
+            </svg>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border-2 border-slate-200 mb-4">
+            <div className="flex justify-between items-baseline mb-2">
+              <span className="font-bold text-slate-700">마스크 위치</span>
+              <span className="font-mono font-extrabold text-xl" style={{ color: inRange ? "#16a34a" : "#dc2626" }}>
+                {data.offset > 50 ? "+" : ""}{data.offset - 50}%
+              </span>
+            </div>
+            <input type="range" min="0" max="100" value={data.offset}
+              onChange={(e) => update({ offset: Number(e.target.value), exposed: false })}
+              disabled={data.exposed && data.ok}
+              className="w-full" style={{ color: inRange ? "#16a34a" : "#dc2626" }} />
+            <div className="flex justify-between text-xs font-mono mt-1">
+              <span className="text-slate-500">← 왼쪽</span>
+              <span className="text-emerald-700 font-bold">★ 정중앙(0) ★</span>
+              <span className="text-slate-500">오른쪽 →</span>
+            </div>
+          </div>
+          {!data.exposed && (
+            <button onClick={handleExpose}
+              className="w-full py-3.5 bg-violet-600 text-white font-extrabold rounded-xl hover:bg-violet-700 active:scale-[0.98] transition-all">
+              💡 UV 노광!
+            </button>
+          )}
+          {data.exposed && data.ok && (
+            <ResultBox success message="✓ 마스크 패턴이 감광액에 정확히 새겨졌어요!" onAdvance={onAdvance} done={done} />
+          )}
+          {data.exposed && !data.ok && (
+            <ResultBox message={`❌ 정렬이 ${Math.abs(data.offset - 50)}% 어긋났어요. ±5% 이내로!`} onRetry={reset} />
+          )}
+        </div>
+      );
+    }
 
-            {/* 2: 산화막 */}
-            {stage >= 2 && (
-              <ellipse cx="300" cy="115" rx="160" ry="10" fill="#3b82f6" opacity="0.6" />
-            )}
+    // ========== Step 4: 식각 ==========
+    function GameStep4({ data, update, done, onAdvance }) {
+      const ETCHANTS = [
+        { id: "H2O", name: "물 (H₂O)", desc: "SiO₂를 못 녹여요" },
+        { id: "HF", name: "불산 (HF)", desc: "SiO₂를 녹여요!" },
+        { id: "HCl", name: "염산 (HCl)", desc: "금속용이에요" },
+      ];
+      const correctEtch = data.etchant === "HF";
+      const correctTime = data.time >= 25 && data.time <= 35;
+      const allOK = correctEtch && correctTime;
+      const handleEtch = () => update({ etched: true, ok: allOK });
+      const reset = () => update({ etchant: null, time: 15, etched: false, ok: false });
 
-            {/* 3: 감광액 */}
-            {stage >= 3 && (
-              <ellipse cx="300" cy="100" rx="158" ry="8" fill="#fbbf24" opacity="0.7" />
-            )}
-
-            {/* 4: 식각 후 패턴 */}
-            {stage >= 4 && (
-              <g>
-                {[100, 180, 260, 340, 420].map((x, i) => (
-                  <rect key={i} x={x} y="93" width="40" height="22" fill="#3b82f6" opacity="0.7" />
+      return (
+        <div>
+          <StepHeader num={4} title="식각" subtitle="ETCHING" emoji="✂️" />
+          <p className="text-slate-700 mb-5 leading-relaxed">
+            감광액이 보호하지 않는 산화막을 깎아내세요. 어떤 약품이 SiO₂를 녹일까요?{" "}
+            <b className="text-violet-700">올바른 약품 + 25~35초가 필요해요</b>
+          </p>
+          <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-4 mb-4">
+            <svg viewBox="0 0 500 170" className="w-full">
+              <path d="M 80,30 L 80,140 L 420,140 L 420,30" fill="none" stroke="#475569" strokeWidth="2.5" />
+              <text x="250" y="22" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#475569">화학 처리 비커</text>
+              {data.etchant && (
+                <rect x="82" y="50" width="336" height="88"
+                  fill={data.etchant === "H2O" ? "#bfdbfe" : data.etchant === "HF" ? "#bbf7d0" : "#fed7aa"}
+                  opacity="0.6" />
+              )}
+              <g transform="translate(150, 75)">
+                {[0, 80, 160].map((x, i) => (
+                  <rect key={`pr${i}`} x={x} y="0" width="40" height="8" fill="#fbbf24" />
                 ))}
-              </g>
-            )}
-
-            {/* 5: 도핑 영역 */}
-            {stage >= 5 && (
-              <g>
-                {[120, 200, 280, 360, 440].map((x, i) => (
-                  <rect key={i} x={x} y="118" width="20" height="18" fill="#a855f7" opacity="0.7" />
+                {[0, 80, 160].map((x, i) => (
+                  <rect key={`ox${i}`} x={x} y="8" width="40" height="10" fill="#3b82f6" opacity="0.6" />
                 ))}
+                {!data.etched && (
+                  <>
+                    <rect x="40" y="8" width="40" height="10" fill="#3b82f6" opacity="0.4" />
+                    <rect x="120" y="8" width="40" height="10" fill="#3b82f6" opacity="0.4" />
+                  </>
+                )}
+                {data.etched && correctEtch && correctTime && (
+                  <text x="100" y="16" textAnchor="middle" fontSize="9" fill="#10b981" fontWeight="bold">정확히 깎임</text>
+                )}
+                {data.etched && correctEtch && data.time > 35 && (
+                  <>
+                    <rect x="0" y="0" width="200" height="18" fill="white" stroke="#dc2626" strokeWidth="1" strokeDasharray="2,2" />
+                    <text x="100" y="14" textAnchor="middle" fontSize="9" fill="#dc2626" fontWeight="bold">과식각 → 손상</text>
+                  </>
+                )}
+                <rect x="0" y="18" width="200" height="20" fill="#94a3b8" />
               </g>
-            )}
+              {!data.etchant && (
+                <text x="250" y="100" textAnchor="middle" fontSize="13" fill="#94a3b8" fontWeight="bold">
+                  사용할 약품을 선택하세요
+                </text>
+              )}
+            </svg>
+          </div>
+          <div className="mb-4">
+            <div className="font-bold text-slate-700 text-sm mb-2">사용할 화학약품</div>
+            <div className="grid grid-cols-3 gap-2">
+              {ETCHANTS.map(e => (
+                <button key={e.id}
+                  onClick={() => update({ etchant: e.id, etched: false })}
+                  disabled={data.etched && data.ok}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    data.etchant === e.id ? "bg-violet-100 border-violet-500 shadow" : "bg-white border-slate-300 hover:border-violet-400"
+                  }`}>
+                  <div className="font-bold text-sm">{e.name}</div>
+                  <div className="text-xs text-slate-600 mt-1">{e.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-4 border-2 border-slate-200 mb-4">
+            <div className="flex justify-between items-baseline mb-2">
+              <span className="font-bold text-slate-700 text-sm">⏱️ 식각 시간</span>
+              <span className="font-mono font-extrabold text-xl"
+                style={{ color: correctTime ? "#16a34a" : "#dc2626" }}>{data.time}초</span>
+            </div>
+            <input type="range" min="0" max="60" value={data.time}
+              onChange={(e) => update({ time: Number(e.target.value), etched: false })}
+              disabled={data.etched && data.ok}
+              className="w-full" style={{ color: correctTime ? "#16a34a" : "#dc2626" }} />
+            <div className="text-xs text-emerald-700 font-bold text-center mt-1">목표: 25 ~ 35초</div>
+          </div>
+          {!data.etched && (
+            <button onClick={handleEtch} disabled={!data.etchant}
+              className="w-full py-3.5 bg-violet-600 text-white font-extrabold rounded-xl hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-all">
+              🧪 식각 시작!
+            </button>
+          )}
+          {data.etched && data.ok && (
+            <ResultBox success message="✓ 산화막이 정확하게 깎였어요!" onAdvance={onAdvance} done={done} />
+          )}
+          {data.etched && !data.ok && (
+            <ResultBox
+              message={!correctEtch ?
+                `❌ ${data.etchant === "H2O" ? "물로는 SiO₂를 녹일 수 없어요" : "염산은 금속용이에요. SiO₂에는 불산(HF)을!"}` :
+                data.time < 25 ? "❌ 시간이 짧아 산화막이 다 안 깎였어요" : "❌ 너무 오래 식각해서 웨이퍼가 손상됐어요"}
+              onRetry={reset} />
+          )}
+        </div>
+      );
+    }
 
-            {/* 6: 금속 배선 */}
-            {stage >= 6 && (
-              <g>
-                <line x1="140" y1="93" x2="220" y2="80" stroke="#475569" strokeWidth="3" />
-                <line x1="220" y1="80" x2="380" y2="80" stroke="#475569" strokeWidth="3" />
-                <line x1="380" y1="80" x2="460" y2="93" stroke="#475569" strokeWidth="3" />
-                {[140, 220, 300, 380, 460].map((x, i) => (
-                  <circle key={i} cx={x} cy="92" r="4" fill="#475569" />
-                ))}
-              </g>
-            )}
+    // ========== Step 5: 이온 주입 ==========
+    function GameStep5({ data, update, done, onAdvance }) {
+      const ok = data.dopant === "P";
+      const handleInject = () => update({ doped: true, ok });
+      const reset = () => update({ dopant: null, doped: false, ok: false });
 
-            {/* 7: 검사 마크 */}
-            {stage >= 7 && (
-              <g>
-                {[140, 220, 380, 460].map((x, i) => (
-                  <text key={i} x={x} y="58" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#10b981">✓</text>
-                ))}
-                <text x="300" y="58" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#ef4444">✗</text>
-              </g>
-            )}
+      return (
+        <div>
+          <StepHeader num={5} title="이온 주입" subtitle="DOPING" emoji="🧪" />
+          <p className="text-slate-700 mb-5 leading-relaxed">
+            식각으로 노출된 영역에 불순물을 주입해 N형 영역을 만드세요.
+            우리는 NPN 트랜지스터의 소스/드레인을 만들 거예요.{" "}
+            <b className="text-violet-700">N형을 만들려면 어떤 원소를?</b>
+          </p>
+          <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-4 mb-4">
+            <svg viewBox="0 0 500 170" className="w-full">
+              {data.dopant && [...Array(8)].map((_, i) => (
+                <g key={i}>
+                  <line x1={150 + i * 25} y1="25" x2={150 + i * 25} y2="95"
+                    stroke={data.dopant === "P" ? "#2563eb" : "#dc2626"} strokeWidth="2" />
+                  <polygon points={`${147 + i * 25},90 ${153 + i * 25},90 ${150 + i * 25},98`}
+                    fill={data.dopant === "P" ? "#2563eb" : "#dc2626"} />
+                </g>
+              ))}
+              <text x="250" y="18" textAnchor="middle" fontSize="11" fontWeight="bold"
+                fill={data.dopant === "P" ? "#2563eb" : data.dopant === "B" ? "#dc2626" : "#94a3b8"}>
+                {data.dopant === "P" ? "⚡ 인(P) 이온 주입 ⚡"
+                  : data.dopant === "B" ? "⚡ 붕소(B) 이온 주입 ⚡"
+                  : "이온 빔 대기 중"}
+              </text>
+              <rect x="100" y="100" width="40" height="12" fill="#3b82f6" opacity="0.6" />
+              <rect x="180" y="100" width="40" height="12" fill="#3b82f6" opacity="0.6" />
+              <rect x="260" y="100" width="40" height="12" fill="#3b82f6" opacity="0.6" />
+              <rect x="340" y="100" width="40" height="12" fill="#3b82f6" opacity="0.6" />
+              <rect x="100" y="112" width="280" height="40" fill="#94a3b8" />
+              {data.doped && (
+                <g>
+                  <rect x="140" y="112" width="40" height="20" fill={data.dopant === "P" ? "#2563eb" : "#dc2626"} opacity="0.7" />
+                  <rect x="220" y="112" width="40" height="20" fill={data.dopant === "P" ? "#2563eb" : "#dc2626"} opacity="0.7" />
+                  <rect x="300" y="112" width="40" height="20" fill={data.dopant === "P" ? "#2563eb" : "#dc2626"} opacity="0.7" />
+                  <text x="240" y="165" textAnchor="middle" fontSize="11" fontWeight="bold"
+                    fill={data.dopant === "P" ? "#2563eb" : "#dc2626"}>
+                    {data.dopant === "P" ? "✓ N형 영역 형성!" : "P형 영역 형성 (목표 X)"}
+                  </text>
+                </g>
+              )}
+            </svg>
+          </div>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <button onClick={() => update({ dopant: "P", doped: false })}
+              disabled={data.doped && data.ok}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                data.dopant === "P" ? "bg-blue-100 border-blue-600 shadow" : "bg-white border-slate-300 hover:border-blue-500"
+              }`}>
+              <div className="text-2xl mb-1">⊖</div>
+              <div className="font-bold">인 (P)</div>
+              <div className="text-xs text-slate-600 mt-1">전자 5개 보유 → N형 (전자 1개 남음)</div>
+            </button>
+            <button onClick={() => update({ dopant: "B", doped: false })}
+              disabled={data.doped && data.ok}
+              className={`p-4 rounded-xl border-2 text-left transition-all ${
+                data.dopant === "B" ? "bg-rose-100 border-rose-600 shadow" : "bg-white border-slate-300 hover:border-rose-500"
+              }`}>
+              <div className="text-2xl mb-1">⊕</div>
+              <div className="font-bold">붕소 (B)</div>
+              <div className="text-xs text-slate-600 mt-1">전자 3개 보유 → P형 (전자 1개 부족)</div>
+            </button>
+          </div>
+          {!data.doped && (
+            <button onClick={handleInject} disabled={!data.dopant}
+              className="w-full py-3.5 bg-violet-600 text-white font-extrabold rounded-xl hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-all">
+              ⚡ 이온 주입!
+            </button>
+          )}
+          {data.doped && data.ok && (
+            <ResultBox success message="✓ N형 영역이 만들어졌어요! NPN 트랜지스터의 소스/드레인 완성." onAdvance={onAdvance} done={done} />
+          )}
+          {data.doped && !data.ok && (
+            <ResultBox message="❌ 붕소(B)는 P형을 만들어요. NPN에는 N형이 필요해요. 인(P)을 선택해 보세요." onRetry={reset} />
+          )}
+        </div>
+      );
+    }
 
-            {/* 8: 완성된 칩 패키지 */}
-            {stage >= 8 && (
-              <g transform="translate(300,140)">
-                <rect x="-100" y="-30" width="200" height="60" rx="8" fill="#1e293b" stroke="#0f172a" strokeWidth="2" />
-                <text x="0" y="0" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#cbd5e1" fontFamily="JetBrains Mono">FINISHED CHIP</text>
-                <text x="0" y="18" textAnchor="middle" fontSize="10" fill="#94a3b8" fontFamily="JetBrains Mono">© Science Lab</text>
-                {[...Array(8)].map((_, i) => (
-                  <g key={i}>
-                    <rect x={-90 + i * 24} y="30" width="6" height="15" fill="#94a3b8" />
-                    <rect x={-90 + i * 24} y="-45" width="6" height="15" fill="#94a3b8" />
+    // ========== Step 6: 금속 배선 ==========
+    function GameStep6({ data, update, done, onAdvance }) {
+      const REQUIRED = ["A-B", "B-C", "C-D"];
+      const allConnected = REQUIRED.every(r => data.conns.includes(r));
+      const toggleConn = (conn) => {
+        if (data.wired && data.ok) return;
+        const newConns = data.conns.includes(conn)
+          ? data.conns.filter(c => c !== conn)
+          : [...data.conns, conn];
+        update({ conns: newConns, wired: false });
+      };
+      const handleVerify = () => update({ wired: true, ok: allConnected });
+      const reset = () => update({ conns: [], wired: false, ok: false });
+
+      return (
+        <div>
+          <StepHeader num={6} title="금속 배선" subtitle="METALLIZATION" emoji="🔌" />
+          <p className="text-slate-700 mb-5 leading-relaxed">
+            도핑 영역들을 금속선으로 연결해 회로를 완성하세요.
+            아래 빈 공간을 클릭해 인접한 컨택트들을 이어 보세요.{" "}
+            <b className="text-violet-700">A↔B↔C↔D 모두 연결!</b>
+          </p>
+          <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-4 mb-4">
+            <svg viewBox="0 0 500 200" className="w-full">
+              <rect x="50" y="120" width="400" height="50" fill="#94a3b8" />
+              {[80, 180, 280, 380].map((x, i) => (
+                <rect key={i} x={x} y="120" width="40" height="20" fill="#a855f7" opacity="0.6" />
+              ))}
+              {[
+                { x: 100, label: "A" }, { x: 200, label: "B" },
+                { x: 300, label: "C" }, { x: 400, label: "D" },
+              ].map(c => (
+                <g key={c.label}>
+                  <circle cx={c.x} cy="120" r="6" fill="#1e293b" />
+                  <text x={c.x} y="112" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#1e293b">{c.label}</text>
+                </g>
+              ))}
+              {[
+                { id: "A-B", x1: 100, x2: 200 },
+                { id: "B-C", x1: 200, x2: 300 },
+                { id: "C-D", x1: 300, x2: 400 },
+              ].map(seg => {
+                const connected = data.conns.includes(seg.id);
+                return (
+                  <g key={seg.id}
+                    style={{ cursor: data.wired && data.ok ? "default" : "pointer" }}
+                    onClick={() => toggleConn(seg.id)}>
+                    <rect x={seg.x1} y="60" width={seg.x2 - seg.x1} height="60"
+                      fill={connected ? "transparent" : "#fef3c7"}
+                      opacity={connected ? 0 : 0.6}
+                      stroke={connected ? "transparent" : "#d97706"} strokeWidth="1" strokeDasharray="3,2" />
+                    {connected ? (
+                      <>
+                        <line x1={seg.x1} y1="90" x2={seg.x2} y2="90" stroke="#475569" strokeWidth="4" />
+                        <line x1={seg.x1} y1="90" x2={seg.x1} y2="120" stroke="#475569" strokeWidth="3" />
+                        <line x1={seg.x2} y1="90" x2={seg.x2} y2="120" stroke="#475569" strokeWidth="3" />
+                      </>
+                    ) : (
+                      <text x={(seg.x1 + seg.x2) / 2} y="93" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#d97706">
+                        클릭해서 연결
+                      </text>
+                    )}
                   </g>
-                ))}
-              </g>
-            )}
+                );
+              })}
+            </svg>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-3 border-2 border-slate-200 mb-4 text-center">
+            <span className="text-sm font-bold text-slate-700">연결 상태: </span>
+            {REQUIRED.map(r => (
+              <span key={r} className={`inline-block mx-1 px-2 py-0.5 rounded font-mono text-xs ${
+                data.conns.includes(r) ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"
+              }`}>
+                {r} {data.conns.includes(r) ? "✓" : "○"}
+              </span>
+            ))}
+          </div>
+          {!data.wired && (
+            <button onClick={handleVerify}
+              className="w-full py-3.5 bg-violet-600 text-white font-extrabold rounded-xl hover:bg-violet-700 active:scale-[0.98] transition-all">
+              🔌 배선 확인!
+            </button>
+          )}
+          {data.wired && data.ok && (
+            <ResultBox success message="✓ 모든 컨택트가 회로로 연결되었어요!" onAdvance={onAdvance} done={done} />
+          )}
+          {data.wired && !data.ok && (
+            <ResultBox
+              message={`❌ 아직 연결 안 된 부분이 있어요: ${REQUIRED.filter(r => !data.conns.includes(r)).join(", ")}`}
+              onRetry={reset} />
+          )}
+        </div>
+      );
+    }
 
-            {/* 진행 단계 라벨 */}
-            <text x="20" y="30" fontSize="13" fontWeight="bold" fill="#7c3aed" fontFamily="JetBrains Mono">
-              {stage}/8 단계 완료
-            </text>
-            {stage > 0 && stage < 8 && (
-              <text x="20" y="50" fontSize="11" fill="#64748b">
-                다음: {PROCESS_STEPS[stage].ko}
-              </text>
-            )}
-            {stage === 0 && (
-              <text x="300" y="140" textAnchor="middle" fontSize="14" fill="#94a3b8" fontWeight="bold">
-                첫 번째 단계를 선택해 시작하세요
-              </text>
-            )}
-            {done && (
-              <text x="300" y="220" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#7c3aed">
-                ✨ 칩 완성! ✨
-              </text>
-            )}
-          </svg>
+    // ========== Step 7: EDS 검사 ==========
+    function GameStep7({ data, update, done, onAdvance }) {
+      const BAD = [2, 5];
+      const allProbed = data.probed.length === 9;
+      const probeChip = (i) => {
+        if (data.tested) return;
+        if (data.probed.includes(i)) return;
+        update({ probed: [...data.probed, i] });
+      };
+      const handleComplete = () => update({ tested: true, ok: allProbed });
+      const reset = () => update({ probed: [], tested: false, ok: false });
+      const goodCount = data.probed.filter(i => !BAD.includes(i)).length;
+      const badCount = data.probed.filter(i => BAD.includes(i)).length;
+
+      return (
+        <div>
+          <StepHeader num={7} title="EDS 검사" subtitle="ELECTRICAL DIE SORTING" emoji="🔍" />
+          <p className="text-slate-700 mb-5 leading-relaxed">
+            탐침으로 웨이퍼의 각 칩을 일일이 찔러 전기적으로 검사하세요.
+            모든 칩을 클릭해서 양품/불량을 가려내세요.{" "}
+            <b className="text-violet-700">9개 칩 모두 검사하기</b>
+          </p>
+          <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-4 mb-4">
+            <div className="flex items-center justify-center my-3">
+              <svg viewBox="0 0 300 300" className="w-full max-w-xs">
+                <circle cx="150" cy="150" r="135" fill="#cbd5e1" stroke="#475569" strokeWidth="2" />
+                {[...Array(9)].map((_, i) => {
+                  const r = Math.floor(i / 3);
+                  const c = i % 3;
+                  const x = 80 + c * 70;
+                  const y = 80 + r * 70;
+                  const isProbed = data.probed.includes(i);
+                  const isBad = BAD.includes(i);
+                  return (
+                    <g key={i} style={{ cursor: data.tested ? "default" : "pointer" }}
+                       onClick={() => probeChip(i)}>
+                      <rect x={x} y={y} width="50" height="50" rx="4"
+                        fill={!isProbed ? "#94a3b8" : isBad ? "#fee2e2" : "#d1fae5"}
+                        stroke={!isProbed ? "#475569" : isBad ? "#dc2626" : "#10b981"}
+                        strokeWidth="2" />
+                      {isProbed ? (
+                        <text x={x + 25} y={y + 33} textAnchor="middle" fontSize="22" fontWeight="bold"
+                          fill={isBad ? "#dc2626" : "#10b981"}>
+                          {isBad ? "✗" : "✓"}
+                        </text>
+                      ) : (
+                        <text x={x + 25} y={y + 30} textAnchor="middle" fontSize="11" fill="#475569" fontWeight="bold">
+                          칩{i + 1}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center text-sm">
+              <div className="bg-white rounded p-2 border border-slate-200">
+                <div className="text-xs text-slate-500">검사 완료</div>
+                <div className="font-mono font-extrabold text-violet-700">{data.probed.length} / 9</div>
+              </div>
+              <div className="bg-white rounded p-2 border border-emerald-200">
+                <div className="text-xs text-emerald-600">양품</div>
+                <div className="font-mono font-extrabold text-emerald-700">{goodCount}</div>
+              </div>
+              <div className="bg-white rounded p-2 border border-rose-200">
+                <div className="text-xs text-rose-600">불량</div>
+                <div className="font-mono font-extrabold text-rose-700">{badCount}</div>
+              </div>
+            </div>
+          </div>
+          {!data.tested && (
+            <button onClick={handleComplete} disabled={!allProbed}
+              className="w-full py-3.5 bg-violet-600 text-white font-extrabold rounded-xl hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-all">
+              {allProbed ? "🔍 검사 완료!" : `${9 - data.probed.length}개 더 검사하세요`}
+            </button>
+          )}
+          {data.tested && data.ok && (
+            <ResultBox success message={`✓ 검사 완료! 양품 ${goodCount}개, 불량 ${badCount}개`} onAdvance={onAdvance} done={done} />
+          )}
+        </div>
+      );
+    }
+
+    // ========== Step 8: 패키지 ==========
+    function GameStep8({ data, update, done, onAdvance }) {
+      const STAGES = [
+        { name: "다이싱", desc: "웨이퍼를 잘라 개별 칩으로 분리해요", btn: "✂️ 다이싱 시작" },
+        { name: "다이 마운트", desc: "칩을 패키지 위에 놓아요", btn: "📦 마운트" },
+        { name: "와이어 본딩", desc: "칩과 핀을 가는 금선으로 연결해요", btn: "🔗 본딩" },
+        { name: "캡슐화", desc: "검은 플라스틱으로 감싸 완제품 완성!", btn: "🛡️ 캡슐화" },
+      ];
+      const allDone = data.stage === 4;
+      const advanceStage = () => {
+        const newStage = data.stage + 1;
+        update({ stage: newStage, packaged: newStage === 4, ok: newStage === 4 });
+      };
+
+      return (
+        <div>
+          <StepHeader num={8} title="패키지" subtitle="PACKAGING" emoji="📦" />
+          <p className="text-slate-700 mb-5 leading-relaxed">
+            마지막 단계예요! 칩을 잘라 포장하면 우리가 사용할 수 있는 IC 칩이 완성됩니다.{" "}
+            <b className="text-violet-700">4개 단계를 차례대로 진행하세요</b>
+          </p>
+          <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-4 mb-4">
+            <svg viewBox="0 0 500 200" className="w-full">
+              {data.stage <= 1 && (
+                <g transform="translate(150,100)">
+                  <circle cx="0" cy="0" r="60" fill="#cbd5e1" stroke="#475569" strokeWidth="2" />
+                  {[-40, -20, 0, 20, 40].map(x => (
+                    <line key={`vc${x}`} x1={x} y1="-50" x2={x} y2="50"
+                      stroke="#dc2626" strokeWidth="1"
+                      strokeDasharray={data.stage >= 1 ? "0" : "2,2"} />
+                  ))}
+                  {[-40, -20, 0, 20, 40].map(y => (
+                    <line key={`hc${y}`} y1={y} x1="-50" y2={y} x2="50"
+                      stroke="#dc2626" strokeWidth="1"
+                      strokeDasharray={data.stage >= 1 ? "0" : "2,2"} />
+                  ))}
+                  <text x="0" y="80" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#475569">
+                    {data.stage === 0 ? "전체 웨이퍼" : "칩들로 분리됨"}
+                  </text>
+                </g>
+              )}
+              {data.stage >= 1 && data.stage < 4 && (
+                <text x="240" y="105" fontSize="32" fill="#7c3aed">→</text>
+              )}
+              {data.stage >= 2 && data.stage < 4 && (
+                <g transform="translate(370,100)">
+                  <rect x="-50" y="-30" width="100" height="60" rx="4" fill="#f1f5f9" stroke="#475569" strokeWidth="2" />
+                  <rect x="-25" y="-15" width="50" height="30" fill="#1e293b" />
+                  <text x="0" y="3" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#cbd5e1" fontFamily="JetBrains Mono">DIE</text>
+                  {data.stage >= 3 && [-20, -8, 8, 20].map(x => (
+                    <g key={`w${x}`}>
+                      <line x1={x * 0.5} y1="-15" x2={x} y2="-30" stroke="#fbbf24" strokeWidth="1" />
+                      <line x1={x * 0.5} y1="15" x2={x} y2="30" stroke="#fbbf24" strokeWidth="1" />
+                    </g>
+                  ))}
+                  {[-30, -10, 10, 30].map(x => (
+                    <g key={`p${x}`}>
+                      <rect x={x - 3} y="30" width="6" height="20" fill="#94a3b8" />
+                      <rect x={x - 3} y="-50" width="6" height="20" fill="#94a3b8" />
+                    </g>
+                  ))}
+                  <text x="0" y="70" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#475569">
+                    {data.stage === 2 ? "칩 마운트됨" : "와이어 본딩 완료"}
+                  </text>
+                </g>
+              )}
+              {data.stage === 4 && (
+                <g transform="translate(250,100)">
+                  <rect x="-90" y="-45" width="180" height="90" rx="8" fill="#1e293b" stroke="#0f172a" strokeWidth="2" />
+                  <text x="0" y="-10" textAnchor="middle" fontSize="14" fontWeight="bold" fill="#cbd5e1" fontFamily="JetBrains Mono">SCIENCE-LAB</text>
+                  <text x="0" y="6" textAnchor="middle" fontSize="9" fill="#94a3b8" fontFamily="JetBrains Mono">CHIP-2026</text>
+                  <text x="0" y="22" textAnchor="middle" fontSize="9" fill="#fbbf24" fontFamily="JetBrains Mono">★ Made by You ★</text>
+                  {[...Array(8)].map((_, i) => (
+                    <g key={i}>
+                      <rect x={-78 + i * 22} y="45" width="6" height="15" fill="#94a3b8" />
+                      <rect x={-78 + i * 22} y="-60" width="6" height="15" fill="#94a3b8" />
+                    </g>
+                  ))}
+                  <text x="0" y="80" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#10b981">
+                    🎉 IC 칩 완성!
+                  </text>
+                </g>
+              )}
+            </svg>
+          </div>
+          <div className="grid grid-cols-4 gap-1 mb-4">
+            {STAGES.map((s, i) => (
+              <div key={i} className={`p-2 rounded-lg text-center text-xs ${
+                i < data.stage ? "bg-emerald-100 text-emerald-700" :
+                i === data.stage ? "bg-violet-100 text-violet-700 ring-2 ring-violet-500" :
+                "bg-slate-100 text-slate-500"
+              }`}>
+                <div className="font-bold">{i < data.stage ? "✓ " : ""}{s.name}</div>
+              </div>
+            ))}
+          </div>
+          {!allDone && (
+            <>
+              <div className="bg-slate-50 rounded-xl p-3 border-2 border-slate-200 mb-3 text-sm text-slate-700">
+                <b className="text-violet-700">{data.stage + 1}단계:</b> {STAGES[data.stage].desc}
+              </div>
+              <button onClick={advanceStage}
+                className="w-full py-3.5 bg-violet-600 text-white font-extrabold rounded-xl hover:bg-violet-700 active:scale-[0.98] transition-all">
+                {STAGES[data.stage].btn}
+              </button>
+            </>
+          )}
+          {allDone && (
+            <ResultBox success message="🎉 축하합니다! 첫 번째 IC 칩을 완성했어요!" onAdvance={onAdvance} done={done} />
+          )}
         </div>
       );
     }
