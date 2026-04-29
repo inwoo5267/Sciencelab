@@ -1,0 +1,1347 @@
+import { useState } from "react";
+import {
+  Atom,
+  Zap,
+  ToggleLeft,
+  Activity,
+  Cpu,
+  ChevronLeft,
+  Lock,
+  Lightbulb,
+  Power,
+  RotateCcw,
+  Info,
+  Sparkles,
+  ArrowRight,
+} from "lucide-react";
+
+/* ===========================================================
+   온라인 과학 실험실 - Science Lab
+   첫 번째 시뮬레이션: 접합형 트랜지스터 (BJT)
+   라이트 테마 / 중·고등학생용
+   =========================================================== */
+
+export default function ScienceLab() {
+  const [currentSim, setCurrentSim] = useState(null);
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        * { font-family: 'Pretendard', -apple-system, sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        input[type="range"] {
+          -webkit-appearance: none;
+          height: 8px;
+          border-radius: 999px;
+          background: #e2e8f0;
+          outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: white;
+          border: 3px solid currentColor;
+          cursor: pointer;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+        input[type="range"]::-moz-range-thumb {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: white;
+          border: 3px solid currentColor;
+          cursor: pointer;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        }
+      `}</style>
+
+      {currentSim === "transistor" ? (
+        <TransistorSim onBack={() => setCurrentSim(null)} />
+      ) : (
+        <LabHome onSelect={setCurrentSim} />
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   실험실 홈
+   ========================================================= */
+function LabHome({ onSelect }) {
+  const sims = [
+    {
+      id: "transistor",
+      title: "접합형 트랜지스터",
+      subtitle: "BJT · NPN / PNP",
+      desc: "전기를 켜고 끄거나, 작은 신호를 크게 키우는 부품의 원리를 직접 체험해 봅니다.",
+      icon: Cpu,
+      color: "blue",
+      ready: true,
+    },
+    {
+      id: "soon1",
+      title: "다이오드 정류 회로",
+      subtitle: "Diode · Rectifier",
+      desc: "교류를 직류로 바꾸는 정류 작용을 살펴봅니다.",
+      icon: Zap,
+      color: "amber",
+      ready: false,
+    },
+    {
+      id: "soon2",
+      title: "RC 시정수 회로",
+      subtitle: "RC · Time Constant",
+      desc: "축전기의 충전과 방전 곡선을 관찰합니다.",
+      icon: Activity,
+      color: "violet",
+      ready: false,
+    },
+    {
+      id: "soon3",
+      title: "전자기 유도",
+      subtitle: "Faraday's Law",
+      desc: "자석과 코일로 전기가 만들어지는 과정을 살펴봅니다.",
+      icon: Atom,
+      color: "rose",
+      ready: false,
+    },
+  ];
+
+  return (
+    <div className="min-h-screen">
+      <header className="bg-white border-b-2 border-slate-200 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-blue-600 flex items-center justify-center shadow-md">
+              <Atom className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <div className="font-mono text-[11px] tracking-widest text-blue-600 font-bold">
+                SCIENCE LAB
+              </div>
+              <div className="text-xl font-extrabold tracking-tight">
+                온라인 과학 실험실
+              </div>
+            </div>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 font-mono text-xs text-slate-600">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="font-bold">실험실 운영중</span>
+          </div>
+        </div>
+      </header>
+
+      {/* 인트로 */}
+      <section className="max-w-6xl mx-auto px-6 pt-16 pb-10">
+        <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-xs font-bold mb-5">
+          <Sparkles className="w-3.5 h-3.5" />
+          중·고등학생을 위한 인터랙티브 과학 실험
+        </div>
+        <h1 className="text-4xl md:text-5xl font-black leading-tight mb-5 text-slate-900">
+          교과서 속 원리,
+          <br />
+          <span className="text-blue-600">손끝에서 살아 움직이게.</span>
+        </h1>
+        <p className="text-slate-700 max-w-2xl leading-relaxed text-lg">
+          슬라이더 하나, 스위치 하나로 전류가 흐르고 전구가 켜집니다.
+          직접 만져보고 변화를 관찰하면, 어려운 개념도 자연스럽게 이해할 수 있어요.
+        </p>
+      </section>
+
+      {/* 시뮬레이션 카드 */}
+      <section className="max-w-6xl mx-auto px-6 py-8 pb-24">
+        <div className="flex items-baseline justify-between mb-6">
+          <h2 className="text-2xl font-extrabold text-slate-900">시뮬레이션 목록</h2>
+          <span className="font-mono text-xs text-slate-500">
+            준비된 실험 1 / 4
+          </span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {sims.map((sim, i) => (
+            <SimCard key={sim.id} sim={sim} index={i} onSelect={onSelect} />
+          ))}
+        </div>
+      </section>
+
+      <footer className="border-t border-slate-200 bg-white py-8">
+        <div className="max-w-6xl mx-auto px-6 font-mono text-xs text-slate-500 flex justify-between flex-wrap gap-2">
+          <span>SCIENCE LAB · INTERACTIVE LEARNING</span>
+          <span>EDUCATIONAL · OPEN ACCESS</span>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function SimCard({ sim, index, onSelect }) {
+  const Icon = sim.icon;
+  const colorMap = {
+    blue: { bg: "bg-blue-600", text: "text-blue-600" },
+    amber: { bg: "bg-amber-500", text: "text-amber-600" },
+    violet: { bg: "bg-violet-600", text: "text-violet-600" },
+    rose: { bg: "bg-rose-600", text: "text-rose-600" },
+  };
+  const c = colorMap[sim.color];
+
+  return (
+    <button
+      disabled={!sim.ready}
+      onClick={() => sim.ready && onSelect(sim.id)}
+      className={`group relative text-left p-6 rounded-2xl border-2 transition-all duration-200 overflow-hidden bg-white
+        ${sim.ready
+          ? "border-slate-200 hover:border-blue-500 hover:shadow-xl cursor-pointer"
+          : "border-slate-200 opacity-60 cursor-not-allowed"}`}
+    >
+      <div className="absolute top-5 right-5 font-mono text-xs text-slate-400 font-bold">
+        #{String(index + 1).padStart(2, "0")}
+      </div>
+
+      <div className="flex items-start gap-4">
+        <div
+          className={`flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center shadow-md ${
+            sim.ready ? c.bg : "bg-slate-300"
+          }`}
+        >
+          {sim.ready ? (
+            <Icon className="w-7 h-7 text-white" />
+          ) : (
+            <Lock className="w-6 h-6 text-white" />
+          )}
+        </div>
+        <div className="flex-1">
+          <div className={`font-mono text-[11px] tracking-widest font-bold mb-1 ${c.text}`}>
+            {sim.subtitle}
+          </div>
+          <div className="text-xl font-extrabold mb-2 text-slate-900">
+            {sim.title}
+          </div>
+          <div className="text-sm text-slate-600 leading-relaxed">{sim.desc}</div>
+        </div>
+      </div>
+
+      {sim.ready ? (
+        <div className="mt-5 pt-4 border-t border-slate-200 flex items-center justify-between text-sm font-bold">
+          <span className={c.text}>실험 시작하기</span>
+          <ArrowRight className={`w-4 h-4 ${c.text} group-hover:translate-x-1 transition-transform`} />
+        </div>
+      ) : (
+        <div className="mt-5 pt-4 border-t border-slate-200 font-mono text-xs text-slate-500 font-bold">
+          준비 중 · COMING SOON
+        </div>
+      )}
+    </button>
+  );
+}
+
+/* =========================================================
+   트랜지스터 시뮬레이션
+   ========================================================= */
+function TransistorSim({ onBack }) {
+  const [tab, setTab] = useState("concept");
+  const [type, setType] = useState("NPN");
+
+  const tabs = [
+    { id: "concept", label: "트랜지스터란?", num: "1", icon: Info },
+    { id: "switch", label: "스위치 작용", num: "2", icon: ToggleLeft },
+    { id: "amplify", label: "증폭 작용", num: "3", icon: Activity },
+    { id: "breadboard", label: "회로 만들기", num: "4", icon: Cpu },
+  ];
+
+  return (
+    <div className="min-h-screen">
+      <header className="bg-white border-b-2 border-slate-200 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between flex-wrap gap-3">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-sm text-slate-700 hover:text-blue-600 font-bold transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>실험실로 돌아가기</span>
+          </button>
+          <div className="text-center">
+            <div className="font-mono text-[10px] tracking-[0.2em] text-blue-600 font-bold">
+              실험 #01
+            </div>
+            <div className="font-extrabold tracking-tight text-slate-900">
+              접합형 트랜지스터
+            </div>
+          </div>
+          <TypeToggle type={type} setType={setType} />
+        </div>
+
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="flex gap-1 flex-wrap">
+            {tabs.map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`relative px-4 py-3 text-sm font-bold flex items-center gap-2 transition-colors ${
+                    active
+                      ? "text-blue-600"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <span
+                    className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-mono ${
+                      active ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {t.num}
+                  </span>
+                  <Icon className="w-4 h-4" />
+                  <span>{t.label}</span>
+                  {active && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        {tab === "concept" && <ConceptTab type={type} />}
+        {tab === "switch" && <SwitchTab type={type} />}
+        {tab === "amplify" && <AmplifyTab type={type} />}
+        {tab === "breadboard" && <BreadboardTab type={type} />}
+      </div>
+    </div>
+  );
+}
+
+function TypeToggle({ type, setType }) {
+  return (
+    <div className="inline-flex bg-slate-100 rounded-lg p-1 font-mono text-xs font-bold">
+      {[
+        { id: "NPN", label: "NPN형", color: "bg-blue-600" },
+        { id: "PNP", label: "PNP형", color: "bg-red-600" },
+      ].map((t) => (
+        <button
+          key={t.id}
+          onClick={() => setType(t.id)}
+          className={`px-4 py-2 rounded transition-all ${
+            type === t.id
+              ? `${t.color} text-white shadow-sm`
+              : "text-slate-600 hover:text-slate-900"
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* =========================================================
+   탭 1 - 트랜지스터란?
+   ========================================================= */
+function ConceptTab({ type }) {
+  const isNPN = type === "NPN";
+  const accent = isNPN ? "#2563eb" : "#dc2626";
+  const accentSoft = isNPN ? "#eff6ff" : "#fef2f2";
+  const layers = isNPN ? ["N", "P", "N"] : ["P", "N", "P"];
+  const labels = ["이미터(E)", "베이스(B)", "컬렉터(C)"];
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardTitle num="1-1" title="트랜지스터, 어떻게 생겼고 무얼 하는 부품일까?" />
+        <div className="grid md:grid-cols-2 gap-6 mt-5">
+          <div className="space-y-4 text-slate-800 leading-relaxed">
+            <p className="text-lg">
+              트랜지스터는 우리 주변의 <b>거의 모든 전자제품</b> — 스마트폰,
+              컴퓨터, TV, 라디오, 충전기 — 안에 들어 있는 아주 작은 부품이에요.
+            </p>
+            <p>하는 일은 단 두 가지로 정리할 수 있어요:</p>
+            <div className="space-y-2">
+              <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
+                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm">
+                  1
+                </span>
+                <div>
+                  <b className="text-blue-900">스위치 작용</b>
+                  <span className="text-slate-700"> — 전류를 켜거나 끄는 일</span>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl border-2 border-amber-200">
+                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-amber-600 text-white font-bold flex items-center justify-center text-sm">
+                  2
+                </span>
+                <div>
+                  <b className="text-amber-900">증폭 작용</b>
+                  <span className="text-slate-700"> — 작은 신호를 큰 신호로 키우는 일</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-100 rounded-xl p-6 border-2 border-slate-200">
+            <div className="text-sm font-bold text-slate-600 mb-3">생긴 모양</div>
+            <div className="flex justify-center">
+              <RealTransistorImage type={type} />
+            </div>
+            <div className="text-sm text-slate-700 mt-4 text-center leading-relaxed">
+              검은 반원 모양의 작은 부품, <br />
+              <b>다리가 3개</b> 달려 있어요.
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card>
+          <CardTitle num="1-2" title={`${type}형의 속 구조`} />
+          <p className="text-sm text-slate-600 mt-3 mb-5">
+            반도체 3장이 <b className="text-slate-900">{type === "NPN" ? "N - P - N" : "P - N - P"}</b> 순서로 붙어 있어요.
+            가운데 <b className="text-slate-900">베이스(B)</b>는 아주 얇게 만들어요.
+          </p>
+          <div className="flex flex-col items-stretch gap-2 mt-4">
+            {layers.map((layer, i) => {
+              const isP = layer === "P";
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="font-mono text-xs font-bold text-slate-700 w-24 text-right">
+                    {labels[i]}
+                  </div>
+                  <div
+                    className="flex-1 h-16 rounded-lg flex items-center justify-center font-extrabold text-xl border-2"
+                    style={{
+                      background: isP ? "#fef2f2" : "#eff6ff",
+                      borderColor: isP ? "#dc2626" : "#2563eb",
+                      color: isP ? "#991b1b" : "#1e3a8a",
+                    }}
+                  >
+                    {layer}형 반도체
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-5 grid grid-cols-1 gap-2 text-sm">
+            <Legend color="#2563eb" label="N형 = (-)전기를 띤 입자(전자)가 많음" />
+            <Legend color="#dc2626" label="P형 = (+)전기를 띤 자리(정공)가 많음" />
+          </div>
+        </Card>
+
+        <Card>
+          <CardTitle num="1-3" title="회로에서 그리는 기호" />
+          <p className="text-sm text-slate-600 mt-3">
+            회로도에서는 이렇게 간단한 기호로 표현해요. 화살표 방향이
+            <b className="text-slate-900"> NPN/PNP</b>를 구분하는 핵심이에요.
+          </p>
+          <div className="flex justify-center my-5">
+            <BJTSymbol type={type} size={200} accent={accent} />
+          </div>
+          <div className="space-y-1">
+            <SimpleRow label="이미터 (E)" value="전류를 내보내는 곳" color={accent} />
+            <SimpleRow label="베이스 (B)" value="문 역할 — 아주 얇음" color={accent} />
+            <SimpleRow label="컬렉터 (C)" value="전류를 받아 모으는 곳" color={accent} />
+          </div>
+        </Card>
+      </div>
+
+      <div
+        className="rounded-2xl p-6 border-2"
+        style={{ background: accentSoft, borderColor: accent }}
+      >
+        <div className="font-mono text-xs font-bold tracking-widest mb-2" style={{ color: accent }}>
+          ★ 꼭 기억하세요
+        </div>
+        <p className="text-xl font-bold text-slate-900 leading-relaxed">
+          베이스에 들어오는 <span style={{ color: accent }}>아주 작은 전류</span>로<br />
+          컬렉터에 흐르는 <span style={{ color: accent }}>큰 전류</span>를 조절할 수 있어요.
+        </p>
+        <p className="text-sm text-slate-700 mt-3">
+          이 비율 (큰 전류 ÷ 작은 전류) 을{" "}
+          <b className="font-mono" style={{ color: accent }}>전류 증폭률 β (베타)</b>
+          라고 부릅니다. 보통 50 ~ 300 정도예요.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function RealTransistorImage({ type }) {
+  return (
+    <svg viewBox="0 0 160 170" width="140" height="150">
+      <path
+        d="M 30,40 Q 30,30 40,30 L 120,30 Q 130,30 130,40 L 130,100 Q 130,110 120,110 L 40,110 Q 30,110 30,100 Z"
+        fill="#1e293b"
+        stroke="#0f172a"
+        strokeWidth="2"
+      />
+      <path
+        d="M 30,40 Q 30,30 40,30 L 120,30 Q 130,30 130,40"
+        fill="none"
+        stroke="#475569"
+        strokeWidth="1.5"
+      />
+      <text x="80" y="60" textAnchor="middle" fontSize="11" fill="#cbd5e1" fontFamily="JetBrains Mono" fontWeight="bold">
+        {type === "NPN" ? "BC547" : "BC557"}
+      </text>
+      <text x="80" y="78" textAnchor="middle" fontSize="9" fill="#94a3b8" fontFamily="JetBrains Mono">
+        {type}
+      </text>
+      <line x1="55" y1="110" x2="55" y2="150" stroke="#94a3b8" strokeWidth="3" />
+      <line x1="80" y1="110" x2="80" y2="150" stroke="#94a3b8" strokeWidth="3" />
+      <line x1="105" y1="110" x2="105" y2="150" stroke="#94a3b8" strokeWidth="3" />
+      <text x="55" y="165" textAnchor="middle" fontSize="10" fill="#1e293b" fontFamily="JetBrains Mono" fontWeight="bold">E</text>
+      <text x="80" y="165" textAnchor="middle" fontSize="10" fill="#1e293b" fontFamily="JetBrains Mono" fontWeight="bold">B</text>
+      <text x="105" y="165" textAnchor="middle" fontSize="10" fill="#1e293b" fontFamily="JetBrains Mono" fontWeight="bold">C</text>
+    </svg>
+  );
+}
+
+function BJTSymbol({ type, size = 180, accent }) {
+  const isNPN = type === "NPN";
+  return (
+    <svg width={size} height={size} viewBox="0 0 200 200">
+      <circle cx="100" cy="100" r="65" fill="white" stroke={accent} strokeWidth="2.5" />
+      <line x1="70" y1="70" x2="70" y2="130" stroke={accent} strokeWidth="4" />
+      <line x1="20" y1="100" x2="70" y2="100" stroke={accent} strokeWidth="2.5" />
+      <text x="10" y="96" fontSize="13" fill={accent} fontFamily="JetBrains Mono" fontWeight="bold">B</text>
+      <line x1="70" y1="80" x2="135" y2="55" stroke={accent} strokeWidth="2.5" />
+      <line x1="135" y1="55" x2="135" y2="20" stroke={accent} strokeWidth="2.5" />
+      <text x="143" y="30" fontSize="13" fill={accent} fontFamily="JetBrains Mono" fontWeight="bold">C</text>
+      <line x1="70" y1="120" x2="135" y2="145" stroke={accent} strokeWidth="2.5" />
+      <line x1="135" y1="145" x2="135" y2="180" stroke={accent} strokeWidth="2.5" />
+      <text x="143" y="180" fontSize="13" fill={accent} fontFamily="JetBrains Mono" fontWeight="bold">E</text>
+      {isNPN ? (
+        <polygon points="120,130 135,145 118,142" fill={accent} />
+      ) : (
+        <polygon points="85,113 70,120 87,123" fill={accent} />
+      )}
+      <text x="100" y="195" textAnchor="middle" fontSize="11" fill={accent} fontFamily="JetBrains Mono" fontWeight="bold" opacity="0.9">
+        {type}
+      </text>
+    </svg>
+  );
+}
+
+function Card({ children }) {
+  return (
+    <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-sm">
+      {children}
+    </div>
+  );
+}
+
+function CardTitle({ num, title }) {
+  return (
+    <div className="flex items-baseline gap-3 border-b-2 border-slate-100 pb-3">
+      <span className="font-mono text-xs font-extrabold text-blue-600 tracking-widest">
+        {num}
+      </span>
+      <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
+    </div>
+  );
+}
+
+function Legend({ color, label }) {
+  return (
+    <div className="flex items-center gap-2 text-slate-700">
+      <span className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ background: color }} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function SimpleRow({ label, value, color }) {
+  return (
+    <div className="flex justify-between items-center py-2.5 border-b border-slate-100 last:border-0">
+      <span className="font-bold" style={{ color }}>{label}</span>
+      <span className="text-slate-700 text-sm">{value}</span>
+    </div>
+  );
+}
+
+/* =========================================================
+   탭 2 - 스위치 작용
+   ========================================================= */
+function SwitchTab({ type }) {
+  const [baseOn, setBaseOn] = useState(false);
+  const accent = type === "NPN" ? "#2563eb" : "#dc2626";
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-blue-50 rounded-2xl p-5 border-2 border-blue-200">
+        <div className="text-sm font-bold text-blue-700 mb-1">먼저 알아보기</div>
+        <p className="text-slate-800 leading-relaxed">
+          전등 스위치를 누르면 불이 켜지죠? 트랜지스터도 똑같아요.{" "}
+          <b className="text-blue-700">베이스에 작은 전류</b>가 들어오면 컬렉터-이미터 사이가{" "}
+          <b className="text-blue-700">"열려서"</b> 큰 전류가 흐르고, 전류가 없으면{" "}
+          <b className="text-blue-700">"닫혀서"</b> 흐르지 않아요.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-5 gap-6">
+        <div className="md:col-span-3">
+          <Card>
+            <CardTitle num="2-1" title="ON / OFF 회로 동작" />
+            <div className="my-6 flex justify-center">
+              <SwitchCircuit baseOn={baseOn} type={type} />
+            </div>
+            <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 rounded-xl border-2 border-slate-200">
+              <div>
+                <div className="text-xs font-bold text-slate-500 mb-0.5">현재 상태</div>
+                <div
+                  className="text-2xl font-extrabold"
+                  style={{ color: baseOn ? accent : "#94a3b8" }}
+                >
+                  {baseOn ? "켜짐 (ON)" : "꺼짐 (OFF)"}
+                </div>
+              </div>
+              <button
+                onClick={() => setBaseOn(!baseOn)}
+                className={`px-6 py-3.5 rounded-xl font-extrabold text-sm transition-all flex items-center gap-2 shadow-md text-white`}
+                style={{ backgroundColor: baseOn ? accent : "#64748b" }}
+              >
+                <Power className="w-4 h-4" />
+                스위치 {baseOn ? "끄기" : "켜기"}
+              </button>
+            </div>
+          </Card>
+        </div>
+
+        <div className="md:col-span-2 space-y-4">
+          <Card>
+            <CardTitle num="2-2" title="실시간 전류값" />
+            <div className="space-y-2.5 mt-4">
+              <Meter
+                label="베이스 전류"
+                sub="I_B"
+                value={baseOn ? "0.05 mA" : "0 mA"}
+                active={baseOn}
+                color={accent}
+              />
+              <Meter
+                label="컬렉터 전류"
+                sub="I_C"
+                value={baseOn ? "5 mA" : "0 mA"}
+                active={baseOn}
+                color={accent}
+              />
+              <Meter
+                label="LED 상태"
+                sub="출력"
+                value={baseOn ? "🟢 켜짐" : "⚫ 꺼짐"}
+                active={baseOn}
+                color="#16a34a"
+              />
+            </div>
+          </Card>
+
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5">
+            <div className="font-bold text-amber-800 text-sm mb-2 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> 어디에 쓰일까요?
+            </div>
+            <ul className="text-sm text-slate-800 space-y-1.5 leading-relaxed">
+              <li>• 컴퓨터의 0과 1을 만드는 디지털 회로</li>
+              <li>• 자동으로 켜지는 가로등</li>
+              <li>• 휴대폰 화면 백라이트 켜기/끄기</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Meter({ label, sub, value, active, color }) {
+  return (
+    <div
+      className="flex items-center justify-between p-3.5 rounded-xl border-2 transition-all"
+      style={{
+        borderColor: active ? color : "#e2e8f0",
+        background: active ? `${color}10` : "#f8fafc",
+      }}
+    >
+      <div>
+        <div className="text-sm font-bold text-slate-800">{label}</div>
+        <div className="font-mono text-[10px] text-slate-500">{sub}</div>
+      </div>
+      <div
+        className="text-xl font-extrabold font-mono"
+        style={{ color: active ? color : "#94a3b8" }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function SwitchCircuit({ baseOn, type }) {
+  const accent = type === "NPN" ? "#2563eb" : "#dc2626";
+  const wireOn = baseOn ? "#eab308" : "#cbd5e1";
+  const wireMain = baseOn ? accent : "#cbd5e1";
+
+  return (
+    <svg viewBox="0 0 420 280" className="w-full max-w-md">
+      {/* 배터리 */}
+      <g>
+        <rect x="20" y="35" width="40" height="50" rx="4" fill="#fef3c7" stroke="#a16207" strokeWidth="2" />
+        <text x="40" y="58" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#a16207" fontFamily="JetBrains Mono">5V</text>
+        <text x="40" y="74" textAnchor="middle" fontSize="9" fill="#a16207" fontFamily="JetBrains Mono">전원</text>
+        <text x="20" y="30" fontSize="11" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
+        <text x="55" y="30" fontSize="11" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
+      </g>
+
+      <line x1="40" y1="35" x2="40" y2="20" stroke={wireMain} strokeWidth="3" />
+      <line x1="40" y1="20" x2="220" y2="20" stroke={wireMain} strokeWidth="3" />
+      <line x1="220" y1="20" x2="220" y2="50" stroke={wireMain} strokeWidth="3" />
+
+      {/* LED */}
+      <g transform="translate(220,75)">
+        {baseOn && <circle cx="0" cy="0" r="28" fill="#22c55e" opacity="0.3" />}
+        {baseOn && <circle cx="0" cy="0" r="20" fill="#22c55e" opacity="0.5" />}
+        <circle cx="0" cy="0" r="14" fill={baseOn ? "#22c55e" : "#e2e8f0"} stroke={baseOn ? "#15803d" : "#94a3b8"} strokeWidth="2" />
+        <path d="M -5,-6 Q -5,-11 0,-11 Q 5,-11 5,-6 L 5,3 L -5,3 Z" fill={baseOn ? "white" : "#cbd5e1"} />
+        <line x1="-3.5" y1="5" x2="3.5" y2="5" stroke={baseOn ? "#15803d" : "#64748b"} strokeWidth="1.2" />
+        <line x1="-2.5" y1="7.5" x2="2.5" y2="7.5" stroke={baseOn ? "#15803d" : "#64748b"} strokeWidth="1.2" />
+        <text x="22" y="3" fontSize="11" fontWeight="bold" fill={baseOn ? "#15803d" : "#64748b"} fontFamily="JetBrains Mono">
+          LED
+        </text>
+      </g>
+      <line x1="220" y1="89" x2="220" y2="130" stroke={wireMain} strokeWidth="3" />
+
+      {/* 트랜지스터 */}
+      <g transform="translate(220,180)">
+        <circle cx="0" cy="0" r="42" fill="white" stroke={accent} strokeWidth="2.5" />
+        <line x1="-18" y1="-15" x2="-18" y2="15" stroke={accent} strokeWidth="4" />
+        <line x1="-18" y1="-8" x2="0" y2="-30" stroke={accent} strokeWidth="2.5" />
+        <line x1="0" y1="-30" x2="0" y2="-50" stroke={accent} strokeWidth="2.5" />
+        <line x1="-18" y1="8" x2="0" y2="30" stroke={accent} strokeWidth="2.5" />
+        <line x1="0" y1="30" x2="0" y2="50" stroke={accent} strokeWidth="2.5" />
+        {type === "NPN" ? (
+          <polygon points="-7,18 0,30 -10,28" fill={accent} />
+        ) : (
+          <polygon points="-13,-2 -18,8 -10,8" fill={accent} />
+        )}
+        <line x1="-42" y1="0" x2="-18" y2="0" stroke={wireOn} strokeWidth="3" />
+        <text x="-65" y="-5" fontSize="11" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">B</text>
+        <text x="6" y="-32" fontSize="11" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">C</text>
+        <text x="6" y="46" fontSize="11" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">E</text>
+      </g>
+
+      {/* 베이스 스위치 */}
+      <g transform="translate(75,180)">
+        <line x1="0" y1="0" x2="105" y2="0" stroke={wireOn} strokeWidth="3" />
+        <circle cx="20" cy="0" r="4" fill={baseOn ? "#eab308" : "#94a3b8"} />
+        <line
+          x1="20"
+          y1="0"
+          x2={baseOn ? "60" : "55"}
+          y2={baseOn ? "0" : "-18"}
+          stroke={baseOn ? "#eab308" : "#475569"}
+          strokeWidth="3.5"
+          strokeLinecap="round"
+        />
+        <circle cx="60" cy="0" r="4" fill={baseOn ? "#eab308" : "#94a3b8"} />
+        <text x="14" y="-22" fontSize="10" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">스위치</text>
+      </g>
+
+      <line x1="40" y1="85" x2="40" y2="150" stroke={wireOn} strokeWidth="3" />
+      <line x1="40" y1="150" x2="75" y2="150" stroke={wireOn} strokeWidth="3" />
+      <line x1="75" y1="150" x2="75" y2="180" stroke={wireOn} strokeWidth="3" />
+
+      {/* 이미터 → GND */}
+      <line x1="220" y1="230" x2="220" y2="255" stroke={wireMain} strokeWidth="3" />
+      <line x1="195" y1="255" x2="245" y2="255" stroke="#475569" strokeWidth="3" />
+      <line x1="200" y1="262" x2="240" y2="262" stroke="#475569" strokeWidth="2.5" />
+      <line x1="208" y1="269" x2="232" y2="269" stroke="#475569" strokeWidth="2" />
+      <text x="248" y="261" fontSize="10" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">접지</text>
+
+      {baseOn &&
+        [0, 0.4, 0.8].map((d, i) => (
+          <circle key={`top${i}`} cx="40" cy="20" r="3.5" fill="#eab308">
+            <animate attributeName="cx" values="40;220" dur="1.4s" repeatCount="indefinite" begin={`${d}s`} />
+          </circle>
+        ))}
+      {baseOn &&
+        [0, 0.4].map((d, i) => (
+          <circle key={`vert${i}`} cx="220" cy="100" r="3.5" fill="#eab308">
+            <animate attributeName="cy" values="100;225" dur="1.2s" repeatCount="indefinite" begin={`${d}s`} />
+          </circle>
+        ))}
+    </svg>
+  );
+}
+
+/* =========================================================
+   탭 3 - 증폭 작용 (큰 비유 시뮬레이션)
+   ========================================================= */
+function AmplifyTab({ type }) {
+  const [baseI, setBaseI] = useState(0);
+  const beta = 100;
+  const collectorI = (baseI * beta) / 1000;
+  const accent = type === "NPN" ? "#2563eb" : "#dc2626";
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-amber-50 rounded-2xl p-5 border-2 border-amber-300">
+        <div className="text-sm font-bold text-amber-800 mb-2 flex items-center gap-2">
+          <Sparkles className="w-4 h-4" />
+          비유로 먼저 이해하기 — 문 앞에 가득 모인 사람들
+        </div>
+        <p className="text-slate-800 leading-relaxed">
+          좁은 문 하나로 막힌 통로가 있다고 상상해 보세요. 문 너머에는{" "}
+          <b className="text-blue-700">사람들이 빽빽하게 대기</b>하고 있어요. 문 옆에 있는{" "}
+          <b className="text-amber-700">한 사람이 문을 살짝 밀고 나가는 순간</b>, 뒤에 있던 사람들이{" "}
+          <b className="text-blue-700">우르르 쏟아져 나갑니다.</b>
+          <br />
+          이게 바로 트랜지스터의 <b>증폭 작용</b>이에요. 작은 신호 하나가 큰 흐름을 만들어내는 거죠.
+        </p>
+      </div>
+
+      <Card>
+        <CardTitle num="3-1" title="베이스 전류를 직접 조절해 보세요" />
+
+        <div className="mt-5">
+          <DoorAnalogyBig baseI={baseI} accent={accent} />
+        </div>
+
+        <div className="mt-6 grid md:grid-cols-3 gap-4">
+          <div className="md:col-span-1 bg-amber-50 rounded-xl p-5 border-2 border-amber-300">
+            <div className="font-bold text-amber-800 text-sm mb-3 flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-amber-500" />
+              ① 베이스 전류 (작은 입력)
+            </div>
+            <div className="text-3xl font-extrabold font-mono mb-3 text-amber-700">
+              {baseI} <span className="text-base text-slate-600">μA</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={baseI}
+              onChange={(e) => setBaseI(Number(e.target.value))}
+              className="w-full"
+              style={{ color: "#d97706" }}
+            />
+            <div className="flex justify-between text-xs text-slate-600 font-mono mt-1">
+              <span>0</span>
+              <span>50</span>
+              <span>100</span>
+            </div>
+            <div className="text-xs text-slate-700 mt-3 leading-relaxed">
+              슬라이더를 움직여서 문 옆 한 사람이 문을 미는 힘을 조절합니다.
+            </div>
+          </div>
+
+          <div className="md:col-span-1 bg-slate-100 rounded-xl p-5 border-2 border-slate-300">
+            <div className="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-slate-500" />
+              ② 트랜지스터의 증폭률
+            </div>
+            <div className="text-3xl font-extrabold font-mono mb-2 text-slate-700">
+              × {beta}
+            </div>
+            <div className="text-xs text-slate-700 leading-relaxed">
+              이 트랜지스터는 들어온 전류를 <b>{beta}배</b>로 키워줘요.
+              <br />
+              <span className="font-mono text-slate-600">β (베타) = {beta}</span>
+            </div>
+          </div>
+
+          <div
+            className="md:col-span-1 rounded-xl p-5 border-2"
+            style={{ background: `${accent}10`, borderColor: accent }}
+          >
+            <div className="font-bold text-sm mb-3 flex items-center gap-2" style={{ color: accent }}>
+              <span className="w-3 h-3 rounded-full" style={{ background: accent }} />
+              ③ 컬렉터 전류 (큰 출력)
+            </div>
+            <div className="text-3xl font-extrabold font-mono mb-3" style={{ color: accent }}>
+              {collectorI.toFixed(2)} <span className="text-base text-slate-600">mA</span>
+            </div>
+            <div className="text-xs text-slate-700 leading-relaxed">
+              {baseI === 0
+                ? "베이스에 입력이 없으면 컬렉터에도 전류가 흐르지 않아요."
+                : `${baseI}μA가 ${beta}배 증폭되어 ${collectorI.toFixed(2)}mA가 되었어요!`}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex items-center justify-center bg-slate-50 rounded-xl p-5 border-2 border-slate-200">
+          <div className="font-mono text-2xl flex items-center gap-3 flex-wrap justify-center">
+            <span style={{ color: accent }} className="font-extrabold">I_C</span>
+            <span className="text-slate-500">=</span>
+            <span className="text-slate-700 font-extrabold">β</span>
+            <span className="text-slate-500">×</span>
+            <span className="text-amber-700 font-extrabold">I_B</span>
+            <span className="text-slate-400 mx-2">→</span>
+            <span style={{ color: accent }} className="font-extrabold">{collectorI.toFixed(2)}mA</span>
+            <span className="text-slate-500">=</span>
+            <span className="text-slate-700 font-extrabold">{beta}</span>
+            <span className="text-slate-500">×</span>
+            <span className="text-amber-700 font-extrabold">{baseI}μA</span>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardTitle num="3-2" title="우리 주변에서 증폭 작용은?" />
+        <div className="grid md:grid-cols-3 gap-4 mt-5">
+          <ExampleBox icon="🎤" title="마이크 → 스피커" desc="마이크에서 만든 작은 전기 신호를 키워서 큰 소리를 냅니다." />
+          <ExampleBox icon="📻" title="라디오 수신" desc="안테나가 받은 약한 전파를 키워서 또렷한 소리로 들려줍니다." />
+          <ExampleBox icon="🎸" title="기타 앰프" desc="기타에서 나온 작은 전기 신호를 큰 소리로 만들어줍니다." />
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ExampleBox({ icon, title, desc }) {
+  return (
+    <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+      <div className="text-3xl mb-2">{icon}</div>
+      <div className="font-extrabold text-slate-900 mb-1">{title}</div>
+      <div className="text-sm text-slate-700 leading-relaxed">{desc}</div>
+    </div>
+  );
+}
+
+function DoorAnalogyBig({ baseI, accent }) {
+  const doorAngle = (baseI / 100) * 75;
+  const flowRate = baseI / 100;
+  const flowing = baseI > 5;
+
+  // 컬렉터(왼쪽) 사람 입자
+  const collectorPeople = [];
+  const cols = 8, rows = 4;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      collectorPeople.push({ x: 60 + c * 32, y: 110 + r * 38 });
+    }
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl border-2 border-slate-300 p-4 overflow-hidden">
+      <svg viewBox="0 0 900 380" className="w-full" style={{ minHeight: 320 }}>
+        <defs>
+          <pattern id="floorPattern" patternUnits="userSpaceOnUse" width="40" height="40">
+            <rect width="40" height="40" fill="#f1f5f9" />
+            <line x1="0" y1="0" x2="40" y2="0" stroke="#e2e8f0" strokeWidth="1" />
+            <line x1="0" y1="0" x2="0" y2="40" stroke="#e2e8f0" strokeWidth="1" />
+          </pattern>
+          <marker id="ahead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill={accent} />
+          </marker>
+        </defs>
+
+        {/* 라벨: 컬렉터(왼쪽) */}
+        <rect x="20" y="20" width="180" height="32" rx="16" fill={accent} />
+        <text x="110" y="42" textAnchor="middle" fontSize="15" fontWeight="bold" fill="white" fontFamily="Pretendard">
+          컬렉터 (입구)
+        </text>
+
+        {/* 라벨: 이미터(오른쪽) */}
+        <rect x="700" y="20" width="180" height="32" rx="16" fill="#16a34a" />
+        <text x="790" y="42" textAnchor="middle" fontSize="15" fontWeight="bold" fill="white" fontFamily="Pretendard">
+          이미터 (출구)
+        </text>
+
+        {/* 통로 영역 */}
+        <rect x="20" y="65" width="860" height="245" fill="url(#floorPattern)" stroke="#cbd5e1" strokeWidth="2" rx="6" />
+
+        {/* 컬렉터 측 영역 */}
+        <rect x="30" y="75" width="350" height="225" fill={`${accent}15`} stroke={accent} strokeWidth="1.5" strokeDasharray="6,4" rx="4" />
+        <text x="50" y="98" fontSize="13" fontWeight="bold" fill={accent} fontFamily="JetBrains Mono">
+          ▶ 대기중인 전자들 (큰 무리)
+        </text>
+
+        {/* 사람 입자들 - 컬렉터 측 */}
+        {collectorPeople.map((p, i) => (
+          <g key={`p${i}`}>
+            <circle cx={p.x} cy={p.y} r="9" fill={accent} opacity="0.9" />
+            <circle cx={p.x} cy={p.y - 13} r="6" fill={accent} opacity="0.9" />
+          </g>
+        ))}
+
+        {/* 이미터 측 영역 */}
+        <rect x="540" y="75" width="320" height="225" fill="#16a34a15" stroke="#16a34a" strokeWidth="1.5" strokeDasharray="6,4" rx="4" />
+        <text x="560" y="98" fontSize="13" fontWeight="bold" fill="#16a34a" fontFamily="JetBrains Mono">
+          ▶ 빠져나간 전자들
+        </text>
+
+        {/* 베이스 영역 - 가운데 */}
+        <rect x="385" y="75" width="150" height="225" fill="#fef3c7" stroke="#f59e0b" strokeWidth="2" rx="4" />
+        <text x="460" y="98" textAnchor="middle" fontSize="13" fontWeight="bold" fill="#a16207" fontFamily="JetBrains Mono">
+          베이스 (얇은 문)
+        </text>
+
+        {/* 문 - 위 힌지에서 아래로 회전 */}
+        <g transform="translate(460,115)">
+          {/* 문틀 */}
+          <line x1="0" y1="0" x2="0" y2="170" stroke="#475569" strokeWidth="3" />
+          {/* 힌지 */}
+          <circle cx="0" cy="0" r="5" fill="#1e293b" />
+          {/* 문 - 회전 (아래로 열림) */}
+          <line
+            x1="0"
+            y1="0"
+            x2={150 * Math.sin((doorAngle * Math.PI) / 180)}
+            y2={150 * Math.cos((doorAngle * Math.PI) / 180)}
+            stroke={baseI > 0 ? "#d97706" : "#64748b"}
+            strokeWidth="7"
+            strokeLinecap="round"
+          />
+          {/* 문 손잡이 */}
+          <circle
+            cx={140 * Math.sin((doorAngle * Math.PI) / 180)}
+            cy={140 * Math.cos((doorAngle * Math.PI) / 180)}
+            r="6"
+            fill={baseI > 0 ? "#fbbf24" : "#94a3b8"}
+            stroke="#a16207"
+            strokeWidth="1.5"
+          />
+        </g>
+
+        {/* 작은 사람 (베이스 전류) - 문 옆 */}
+        <g transform={`translate(${410 + flowRate * 18}, ${245 + flowRate * 5})`}>
+          <circle cx="0" cy="0" r="13" fill="#eab308" stroke="#a16207" strokeWidth="2.5" />
+          <circle cx="0" cy="-16" r="8" fill="#eab308" stroke="#a16207" strokeWidth="2.5" />
+          <text x="0" y="28" textAnchor="middle" fontSize="11" fontWeight="bold" fill="#a16207" fontFamily="JetBrains Mono">
+            I_B
+          </text>
+          {baseI > 0 && (
+            <text x="20" y="-8" fontSize="16">
+              💪
+            </text>
+          )}
+        </g>
+
+        {/* 흐르는 사람들 (컬렉터 → 이미터) */}
+        {flowing &&
+          [...Array(Math.min(15, Math.floor(flowRate * 15) + 2))].map((_, i) => {
+            const dur = 2.2 - flowRate * 1.4;
+            const startY = 130 + (i % 4) * 42;
+            return (
+              <g key={`flow${i}`}>
+                <circle cx="370" cy={startY} r="9" fill={accent} opacity="0.95">
+                  <animate
+                    attributeName="cx"
+                    values="370;560"
+                    dur={`${dur}s`}
+                    repeatCount="indefinite"
+                    begin={`${i * 0.18}s`}
+                  />
+                  <animate
+                    attributeName="opacity"
+                    values="0;1;1;0"
+                    dur={`${dur}s`}
+                    repeatCount="indefinite"
+                    begin={`${i * 0.18}s`}
+                  />
+                </circle>
+                <circle cx="370" cy={startY - 13} r="6" fill={accent} opacity="0.95">
+                  <animate
+                    attributeName="cx"
+                    values="370;560"
+                    dur={`${dur}s`}
+                    repeatCount="indefinite"
+                    begin={`${i * 0.18}s`}
+                  />
+                  <animate
+                    attributeName="opacity"
+                    values="0;1;1;0"
+                    dur={`${dur}s`}
+                    repeatCount="indefinite"
+                    begin={`${i * 0.18}s`}
+                  />
+                </circle>
+              </g>
+            );
+          })}
+
+        {/* 흐름 라벨 */}
+        {flowing && (
+          <g opacity={Math.min(1, flowRate * 1.3)}>
+            <text x="460" y="345" textAnchor="middle" fontSize="15" fontWeight="bold" fill={accent} fontFamily="Pretendard">
+              ⬅ 우르르!
+            </text>
+          </g>
+        )}
+
+        {/* 상태 표시 */}
+        <rect x="20" y="320" width="860" height="40" rx="8" fill="white" stroke="#cbd5e1" strokeWidth="1.5" />
+        <text x="40" y="346" fontSize="15" fill="#0f172a" fontFamily="Pretendard" fontWeight="bold">
+          {baseI === 0
+            ? "🚪 문 닫힘 — 아무도 지나갈 수 없어요"
+            : baseI < 30
+            ? "🚪 문 살짝 열림 — 한두 명씩 천천히 지나가요"
+            : baseI < 70
+            ? "🚪 문 꽤 열림 — 줄지어 빠르게 지나가요"
+            : "🚪 문 활짝 열림 — 모두가 우르르 쏟아져 나가요!"}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+/* =========================================================
+   탭 4 - 브레드보드 회로
+   ========================================================= */
+function BreadboardTab({ type }) {
+  const [base, setBase] = useState(0);
+  const [vcc, setVcc] = useState(5);
+  const accent = type === "NPN" ? "#2563eb" : "#dc2626";
+  const brightness = Math.min(1, (base / 100) * (vcc / 5));
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-blue-50 rounded-2xl p-5 border-2 border-blue-200">
+        <div className="text-sm font-bold text-blue-700 mb-1">실험 안내</div>
+        <p className="text-slate-800 leading-relaxed">
+          실제 학교 실습 시간에 사용하는 <b className="text-blue-700">브레드보드(빵판)</b> 위에 올린 회로예요.
+          트랜지스터, 저항, LED, 전원만으로 만들 수 있어요.
+          <b className="text-blue-700"> 베이스 입력</b>을 천천히 올려 보면서 LED 밝기 변화를 관찰해 보세요.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-6">
+        <div className="md:col-span-2">
+          <Card>
+            <CardTitle num="4-1" title="브레드보드 회로" />
+            <div className="mt-4 bg-slate-50 rounded-xl p-3 border-2 border-slate-200">
+              <Breadboard base={base} vcc={vcc} brightness={brightness} type={type} />
+            </div>
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <Tag color="#eab308" label="VCC" desc={`${vcc}V 전원`} />
+              <Tag color={accent} label="Q1" desc={`${type} 트랜지스터`} />
+              <Tag color="#a78bfa" label="저항" desc="전류 제한" />
+              <Tag color="#16a34a" label="LED" desc="발광 다이오드" />
+            </div>
+          </Card>
+        </div>
+
+        <div className="space-y-4">
+          <Card>
+            <CardTitle num="4-2" title="제어 패널" />
+            <div className="mt-5 space-y-5">
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="font-bold text-slate-700 text-sm">베이스 입력</span>
+                  <span className="font-mono font-extrabold" style={{ color: accent }}>
+                    {base}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={base}
+                  onChange={(e) => setBase(Number(e.target.value))}
+                  className="w-full"
+                  style={{ color: accent }}
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="font-bold text-slate-700 text-sm">전원 V_CC</span>
+                  <span className="font-mono font-extrabold text-amber-600">{vcc}V</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="9"
+                  value={vcc}
+                  onChange={(e) => setVcc(Number(e.target.value))}
+                  className="w-full"
+                  style={{ color: "#d97706" }}
+                />
+              </div>
+
+              <button
+                onClick={() => {
+                  setBase(0);
+                  setVcc(5);
+                }}
+                className="w-full py-2.5 text-sm font-bold border-2 border-slate-300 rounded-lg hover:border-blue-500 hover:text-blue-600 text-slate-700 transition-colors flex items-center justify-center gap-2 bg-white"
+              >
+                <RotateCcw className="w-4 h-4" />
+                초기화
+              </button>
+            </div>
+          </Card>
+
+          <Card>
+            <div className="text-sm font-bold text-slate-700 mb-3">LED 밝기</div>
+            <div className="flex items-center justify-center py-4">
+              <div
+                className="w-24 h-24 rounded-full flex items-center justify-center transition-all"
+                style={{
+                  background: `radial-gradient(circle, rgba(34,197,94,${brightness * 0.9}) 0%, rgba(34,197,94,${brightness * 0.2}) 70%, transparent 100%)`,
+                  boxShadow: brightness > 0.1 ? `0 0 ${brightness * 40}px rgba(34,197,94,${brightness * 0.8})` : "none",
+                }}
+              >
+                <Lightbulb
+                  className="w-10 h-10 transition-colors"
+                  style={{
+                    color: brightness > 0.1 ? "#15803d" : "#94a3b8",
+                    fill: brightness > 0.5 ? "#22c55e" : "none",
+                  }}
+                />
+              </div>
+            </div>
+            <div className="text-center font-bold text-sm">
+              <span className="text-slate-600">상태 · </span>
+              <span style={{ color: brightness > 0.1 ? "#15803d" : "#94a3b8" }}>
+                {brightness > 0.7
+                  ? "매우 밝음"
+                  : brightness > 0.3
+                  ? "보통"
+                  : brightness > 0.05
+                  ? "약하게 켜짐"
+                  : "꺼짐"}
+              </span>
+            </div>
+          </Card>
+
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-sm leading-relaxed text-slate-800">
+            <div className="font-bold text-amber-800 mb-2 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> 실험 팁
+            </div>
+            베이스를 0 → 100 까지 천천히 올려 보세요. 같은 트랜지스터가 켜짐/꺼짐{" "}
+            <b>(스위치)</b>으로도, 중간 단계에서 밝기를 조절하는{" "}
+            <b>(증폭기)</b>로도 동작하는 걸 확인할 수 있어요.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Tag({ color, label, desc }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border-2 border-slate-200">
+      <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: color }} />
+      <span className="font-bold text-slate-900 text-sm">{label}</span>
+      <span className="text-slate-600 text-xs">{desc}</span>
+    </div>
+  );
+}
+
+function Breadboard({ base, vcc, brightness, type }) {
+  const accent = type === "NPN" ? "#2563eb" : "#dc2626";
+  const wireOn = base > 5;
+  const ledColor = brightness > 0.1 ? "#22c55e" : "#cbd5e1";
+
+  return (
+    <svg viewBox="0 0 500 280" className="w-full">
+      <rect x="20" y="40" width="460" height="200" rx="8" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="2" />
+
+      <line x1="35" y1="55" x2="465" y2="55" stroke="#dc2626" strokeWidth="2" />
+      <line x1="35" y1="65" x2="465" y2="65" stroke="#1e40af" strokeWidth="2" />
+      <text x="22" y="59" fontSize="9" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
+      <text x="22" y="69" fontSize="9" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
+
+      <line x1="35" y1="220" x2="465" y2="220" stroke="#dc2626" strokeWidth="2" />
+      <line x1="35" y1="230" x2="465" y2="230" stroke="#1e40af" strokeWidth="2" />
+
+      {[...Array(6)].map((_, r) =>
+        [...Array(14)].map((_, c) => (
+          <circle key={`h${r}${c}`} cx={50 + c * 30} cy={85 + r * 22} r="2" fill="#94a3b8" opacity="0.5" />
+        ))
+      )}
+      <line x1="20" y1="158" x2="480" y2="158" stroke="#94a3b8" strokeWidth="0.5" opacity="0.4" />
+
+      {/* 배터리 */}
+      <g transform="translate(45,30)">
+        <rect x="-20" y="-15" width="40" height="22" fill="#fef3c7" stroke="#a16207" strokeWidth="1.5" rx="3" />
+        <text x="0" y="0" fontSize="11" fontWeight="bold" fill="#a16207" textAnchor="middle" fontFamily="JetBrains Mono">
+          {vcc}V
+        </text>
+        <line x1="-10" y1="7" x2="-10" y2="25" stroke="#dc2626" strokeWidth="2.5" />
+        <line x1="10" y1="7" x2="10" y2="25" stroke="#1e40af" strokeWidth="2.5" />
+      </g>
+
+      {/* 저항 R1 */}
+      <g transform="translate(140,85)">
+        <line x1="-30" y1="0" x2="-15" y2="0" stroke="#475569" strokeWidth="2.5" />
+        <rect x="-15" y="-6" width="30" height="12" fill="#a78bfa" stroke="#6d28d9" strokeWidth="1.5" rx="3" />
+        <text x="0" y="3" fontSize="7" fontWeight="bold" fill="white" textAnchor="middle" fontFamily="JetBrains Mono">
+          1kΩ
+        </text>
+        <line x1="15" y1="0" x2="30" y2="0" stroke="#475569" strokeWidth="2.5" />
+      </g>
+
+      {/* 저항 R2 */}
+      <g transform="translate(330,85)">
+        <line x1="-30" y1="0" x2="-15" y2="0" stroke="#475569" strokeWidth="2.5" />
+        <rect x="-15" y="-6" width="30" height="12" fill="#a78bfa" stroke="#6d28d9" strokeWidth="1.5" rx="3" />
+        <text x="0" y="3" fontSize="7" fontWeight="bold" fill="white" textAnchor="middle" fontFamily="JetBrains Mono">
+          330Ω
+        </text>
+        <line x1="15" y1="0" x2="30" y2="0" stroke="#475569" strokeWidth="2.5" />
+      </g>
+
+      {/* LED */}
+      <g transform="translate(380,140)">
+        {brightness > 0.2 && (
+          <circle cx="0" cy="0" r="20" fill="#22c55e" opacity={brightness * 0.4} />
+        )}
+        <circle cx="0" cy="0" r="11" fill={ledColor} stroke="#15803d" strokeWidth="2" />
+        <line x1="-3" y1="11" x2="-3" y2="22" stroke="#475569" strokeWidth="2" />
+        <line x1="3" y1="11" x2="3" y2="22" stroke="#475569" strokeWidth="2" />
+        <text x="20" y="3" fontSize="10" fontWeight="bold" fill="#15803d" fontFamily="JetBrains Mono">
+          LED
+        </text>
+      </g>
+
+      {/* 트랜지스터 */}
+      <g transform="translate(220,170)">
+        <path
+          d="M -14,-18 Q -14,-23 -9,-23 L 9,-23 Q 14,-23 14,-18 L 14,5 Z"
+          fill="#1e293b"
+          stroke={accent}
+          strokeWidth="2"
+        />
+        <text x="0" y="-10" textAnchor="middle" fontSize="8" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">
+          {type}
+        </text>
+        <line x1="-8" y1="5" x2="-8" y2="28" stroke="#475569" strokeWidth="2" />
+        <line x1="0" y1="5" x2="0" y2="28" stroke="#475569" strokeWidth="2" />
+        <line x1="8" y1="5" x2="8" y2="28" stroke="#475569" strokeWidth="2" />
+        <text x="-13" y="40" fontSize="8" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">B</text>
+        <text x="-3" y="40" fontSize="8" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">C</text>
+        <text x="5" y="40" fontSize="8" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">E</text>
+      </g>
+
+      {/* 점프 와이어 */}
+      <line x1="320" y1="55" x2="320" y2="80" stroke="#dc2626" strokeWidth="2.5" />
+      <line x1="320" y1="80" x2="300" y2="85" stroke="#dc2626" strokeWidth="2.5" />
+      <line x1="360" y1="85" x2="380" y2="125" stroke="#475569" strokeWidth="2.5" />
+      <line x1="380" y1="155" x2="380" y2="200" stroke={wireOn ? accent : "#cbd5e1"} strokeWidth="2.5" />
+      <line x1="380" y1="200" x2="227" y2="200" stroke={wireOn ? accent : "#cbd5e1"} strokeWidth="2.5" />
+      <line x1="220" y1="200" x2="220" y2="220" stroke="#1e40af" strokeWidth="2.5" />
+      <line x1="213" y1="200" x2="170" y2="200" stroke={wireOn ? "#eab308" : "#cbd5e1"} strokeWidth="2.5" />
+      <line x1="170" y1="200" x2="170" y2="85" stroke={wireOn ? "#eab308" : "#cbd5e1"} strokeWidth="2.5" />
+      <line x1="110" y1="85" x2="80" y2="85" stroke={wireOn ? "#eab308" : "#cbd5e1"} strokeWidth="2.5" />
+      <line x1="80" y1="85" x2="80" y2="55" stroke={wireOn ? "#eab308" : "#cbd5e1"} strokeWidth="2.5" />
+
+      {wireOn &&
+        [0, 0.4, 0.8].map((d, i) => (
+          <circle key={`flow${i}`} cx="380" cy="200" r="3" fill="#eab308">
+            <animate
+              attributeName="cx"
+              values="380;227"
+              dur={`${1.5 - brightness * 0.8}s`}
+              repeatCount="indefinite"
+              begin={`${d}s`}
+            />
+          </circle>
+        ))}
+
+      <text x="35" y="248" fontSize="9" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">접지(GND)</text>
+    </svg>
+  );
+}
