@@ -3504,13 +3504,14 @@
           if (part.toggle && !switches[idx]) return;
           edges.push({ compIdx: idx, partId: c.partId, n1, n2 });
         } else if (part.pins === 3) {
-          if (!c.pins[1] || !c.pins[2]) return;
-          const nC = getNodeOf(c.pins[1], board);
-          const nE = getNodeOf(c.pins[2], board);
+          // pins 순서: [E, B, C] (사용자 요청 순서)
+          if (!c.pins[1] || !c.pins[2]) return; // B(1)와 C(2) 필수
+          const nC = getNodeOf(c.pins[2], board);
+          const nE = getNodeOf(c.pins[0], board);
           if (nC === nE) return;
           edges.push({
             compIdx: idx, partId: c.partId, n1: nC, n2: nE, transistor: true,
-            baseNode: c.pins[0] ? getNodeOf(c.pins[0], board) : null,
+            baseNode: c.pins[1] ? getNodeOf(c.pins[1], board) : null,
           });
         }
       });
@@ -3631,11 +3632,17 @@
       };
     }
 
+    /* =========================================================
+       🔌 브레드보드 가상 구성 시뮬레이션 (Tinkercad 스타일)
+       ========================================================= */
+
     function BreadboardSim({ onBack }) {
       const [board, setBoard] = useState("full");
-      const [selectedPart, setSelectedPart] = useState(null);
+      const [selectedPart, setSelectedPart] = useState(null);  // 부품함에서 새로 꺼낸 부품
       const [pendingPins, setPendingPins] = useState([]);
       const [placed, setPlaced] = useState([]);
+      const [selectedComp, setSelectedComp] = useState(null);  // 작업영역에서 클릭한 기존 부품 idx
+      const [editingComp, setEditingComp] = useState(null);    // 위치 이동중인 부품 {idx, partId, oldPins}
       const [powerOn, setPowerOn] = useState(true);
       const [switches, setSwitches] = useState({});
       const [showHelp, setShowHelp] = useState(true);
@@ -3647,25 +3654,75 @@
       const handleSelectPart = (partId) => {
         setSelectedPart(partId);
         setPendingPins([]);
+        setSelectedComp(null);
+        setEditingComp(null);
       };
 
       const handlePinClick = (pinId) => {
-        if (!selectedPart) return;
-        // 이미 사용된 핀에는 못 꽂게 (단, 같은 노드 내 다른 구멍은 OK)
-        const part = BB_PARTS[selectedPart];
+        // 1) 위치 이동 중 (editingComp): 새 위치에 다시 꽂기
+        if (editingComp) {
+          const part = BB_PARTS[editingComp.partId];
+          const newPending = [...pendingPins, pinId];
+          if (newPending.length === part.pins) {
+            const newPlaced = [...placed];
+            newPlaced[editingComp.idx] = { partId: editingComp.partId, pins: newPending };
+            setPlaced(newPlaced);
+            setPendingPins([]);
+            setEditingComp(null);
+            setSelectedComp(editingComp.idx);
+          } else {
+            setPendingPins(newPending);
+          }
+          return;
+        }
+        // 2) 부품함에서 부품 선택 후 핀 클릭: 새 부품 배치
+        if (selectedPart) {
+          const part = BB_PARTS[selectedPart];
+          const newPending = [...pendingPins, pinId];
+          if (newPending.length === part.pins) {
+            setPlaced([...placed, { partId: selectedPart, pins: newPending }]);
+            setPendingPins([]);
+            setSelectedPart(null);
+          } else {
+            setPendingPins(newPending);
+          }
+          return;
+        }
+        // 3) 아무것도 선택 안된 상태: 점퍼선 자동 배치 (2번 클릭)
         const newPending = [...pendingPins, pinId];
-        if (newPending.length === part.pins) {
-          setPlaced([...placed, { partId: selectedPart, pins: newPending }]);
+        if (newPending.length === 2) {
+          // 같은 노드에 점퍼선 = 무의미
+          setPlaced([...placed, { partId: "jumper_y", pins: newPending }]);
           setPendingPins([]);
-          setSelectedPart(null);
         } else {
           setPendingPins(newPending);
         }
       };
 
+      const handleCompClick = (idx, e) => {
+        if (e) e.stopPropagation();
+        // 부품 자체 클릭: 선택 (편집 옵션 표시)
+        if (editingComp || selectedPart || pendingPins.length > 0) return;
+        setSelectedComp(idx === selectedComp ? null : idx);
+      };
+
+      const startMoveComp = (idx) => {
+        // 위치 변경 모드 진입
+        setEditingComp({ idx, partId: placed[idx].partId, oldPins: placed[idx].pins });
+        setPendingPins([]);
+        setSelectedPart(null);
+        setSelectedComp(null);
+      };
+
+      const cancelEditing = () => {
+        setEditingComp(null);
+        setPendingPins([]);
+      };
+
       const cancelPending = () => {
         setPendingPins([]);
         setSelectedPart(null);
+        setEditingComp(null);
       };
 
       const removeComponent = (idx) => {
@@ -3677,12 +3734,15 @@
           else if (ki > idx) newSwitches[ki - 1] = switches[k];
         });
         setSwitches(newSwitches);
+        setSelectedComp(null);
       };
 
       const clearAll = () => {
         setPlaced([]);
         setPendingPins([]);
         setSelectedPart(null);
+        setSelectedComp(null);
+        setEditingComp(null);
         setSwitches({});
       };
 
@@ -3690,13 +3750,21 @@
         setSwitches({ ...switches, [idx]: !switches[idx] });
       };
 
+      // 현재 어떤 모드인지 안내
+      const mode =
+        editingComp ? "editing" :
+        selectedPart ? "placing" :
+        pendingPins.length > 0 ? "jumper_drawing" :
+        selectedComp !== null ? "selected" :
+        "idle";
+
       return (
         <div className="min-h-screen">
           <header className="bg-white border-b-2 border-slate-200 sticky top-0 z-20">
-            <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
+            <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between flex-wrap gap-3">
               <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-slate-700 hover:text-emerald-600 font-bold transition-colors">
                 <ChevronLeft className="w-4 h-4" />
-                <span>실험실로 돌아가기</span>
+                <span>실험실로</span>
               </button>
               <div className="text-center">
                 <div className="font-mono text-[10px] tracking-[0.2em] text-emerald-600 font-bold">실험 #04</div>
@@ -3716,7 +3784,7 @@
                 <button onClick={() => setPowerOn(!powerOn)}
                   className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 ${powerOn ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-700"}`}>
                   <Power className="w-3.5 h-3.5" />
-                  {powerOn ? "전원 ON" : "전원 OFF"}
+                  {powerOn ? "ON" : "OFF"}
                 </button>
                 <button onClick={clearAll}
                   className="px-3 py-1.5 rounded-lg font-bold text-xs border-2 border-slate-300 text-slate-700 hover:bg-slate-50 flex items-center gap-1.5">
@@ -3732,22 +3800,48 @@
               <div className="bg-emerald-50 border-2 border-emerald-300 rounded-xl p-4 flex items-start gap-3">
                 <Sparkles className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 text-sm text-slate-800 leading-relaxed">
-                  <b className="text-emerald-800">사용법:</b> ① 왼쪽에서 부품 클릭 → ② 브레드보드 구멍을 부품 다리 수만큼 차례로 클릭하면 배치됩니다.
-                  배치된 부품은 오른쪽 패널에서 삭제할 수 있어요. <b>풀사이즈는 양쪽 빨강/파랑줄(+/− 레일)이 세로로 모두 연결</b>되어 있고,
-                  가운데는 가로 5칸씩 묶음으로 연결됩니다.
+                  <b className="text-emerald-800">사용법:</b><br />
+                  • <b>부품 배치</b>: 왼쪽 부품함에서 부품 클릭 → 브레드보드 구멍을 다리 수만큼 차례로 클릭<br />
+                  • <b>점퍼선 빠른 배치</b>: 아무것도 선택 안 한 상태에서 구멍 두 개 차례로 클릭 (자동으로 점퍼선)<br />
+                  • <b>배치된 부품 수정</b>: 부품을 클릭하면 메뉴(이동/삭제) 표시<br />
+                  • <b>풀사이즈</b>: 양쪽 빨강·파랑줄(+/− 레일) 세로 연결, 가운데는 가로 5칸씩 묶음
                 </div>
                 <button onClick={() => setShowHelp(false)} className="text-emerald-600 hover:text-emerald-800 text-xl font-bold leading-none">×</button>
               </div>
             </div>
           )}
 
-          <div className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* 모드 안내 배너 */}
+          {mode !== "idle" && mode !== "selected" && (
+            <div className="max-w-7xl mx-auto px-4 pt-3">
+              <div className="bg-amber-100 border-2 border-amber-400 rounded-xl px-4 py-2.5 text-sm flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-amber-900 font-bold">
+                  {mode === "placing" && (
+                    <>📦 <b>{BB_PARTS[selectedPart].name}</b> 배치 중 — 구멍 {pendingPins.length}/{BB_PARTS[selectedPart].pins} 클릭됨
+                      {BB_PARTS[selectedPart].pins === 3 && <span className="ml-2 text-xs font-mono">(① E → ② B → ③ C 순서)</span>}
+                    </>
+                  )}
+                  {mode === "editing" && (
+                    <>✏️ <b>{BB_PARTS[editingComp.partId].name}</b> 위치 이동 중 — 새 위치 {pendingPins.length}/{BB_PARTS[editingComp.partId].pins} 클릭</>
+                  )}
+                  {mode === "jumper_drawing" && (
+                    <>🟡 점퍼선 그리는 중 — 두 번째 구멍 클릭하세요 ({pendingPins.length}/2)</>
+                  )}
+                </div>
+                <button onClick={cancelPending}
+                  className="text-amber-700 hover:text-amber-900 font-bold text-xs px-3 py-1 border-2 border-amber-400 rounded-lg hover:bg-amber-50">
+                  ✕ 취소 (ESC)
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="max-w-7xl mx-auto px-4 py-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
             <div className="lg:col-span-3">
               <BBPartsPanel
                 selectedPart={selectedPart}
                 onSelectPart={handleSelectPart}
-                pendingPins={pendingPins}
-                onCancel={cancelPending} />
+                disabled={mode === "editing" || mode === "jumper_drawing"} />
             </div>
             <div className="lg:col-span-6">
               <BBWorkArea
@@ -3755,15 +3849,27 @@
                 placed={placed}
                 pendingPins={pendingPins}
                 selectedPart={selectedPart}
+                editingComp={editingComp}
+                selectedComp={selectedComp}
                 onPinClick={handlePinClick}
+                onCompClick={handleCompClick}
+                onStartMove={startMoveComp}
+                onRemoveSelected={() => selectedComp !== null && removeComponent(selectedComp)}
+                onCancelSelected={() => setSelectedComp(null)}
                 result={result}
-                powerOn={powerOn} />
+                powerOn={powerOn}
+                mode={mode}
+                switches={switches}
+                onToggleSwitch={toggleSwitch} />
             </div>
             <div className="lg:col-span-3">
               <BBStatusPanel
                 result={result}
                 placed={placed}
+                selectedComp={selectedComp}
+                onSelectComp={(idx) => setSelectedComp(idx === selectedComp ? null : idx)}
                 onRemove={removeComponent}
+                onStartMove={startMoveComp}
                 switches={switches}
                 onToggleSwitch={toggleSwitch} />
             </div>
@@ -3772,36 +3878,17 @@
       );
     }
 
-    function BBPartsPanel({ selectedPart, onSelectPart, pendingPins, onCancel }) {
+    /* ----- 부품함 ----- */
+    function BBPartsPanel({ selectedPart, onSelectPart, disabled }) {
       return (
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 sticky top-28">
-          <div className="font-extrabold text-slate-900 mb-3 flex items-center gap-2">
+        <div className={`bg-white rounded-2xl border-2 border-slate-200 p-3 ${disabled ? "opacity-50 pointer-events-none" : ""}`}>
+          <div className="font-extrabold text-slate-900 mb-3 flex items-center gap-2 px-1">
             📦 부품함
           </div>
-
-          {selectedPart && (
-            <div className="bg-emerald-50 border-2 border-emerald-400 rounded-xl p-3 mb-3 text-sm">
-              <div className="font-bold text-emerald-800 mb-1">
-                {BB_PARTS[selectedPart].emoji} {BB_PARTS[selectedPart].name}
-              </div>
-              <div className="text-slate-700 text-xs mb-2">
-                구멍을 <b>{BB_PARTS[selectedPart].pins}번</b> 클릭해서 다리를 꽂으세요
-                ({pendingPins.length}/{BB_PARTS[selectedPart].pins})
-                {BB_PARTS[selectedPart].pins === 3 && (
-                  <div className="mt-1">순서: <b>① 베이스(B)</b> → <b>② 컬렉터(C)</b> → <b>③ 이미터(E)</b></div>
-                )}
-              </div>
-              <button onClick={onCancel}
-                className="w-full px-2 py-1 text-xs font-bold border-2 border-emerald-300 rounded text-emerald-700 hover:bg-emerald-100">
-                ✕ 취소
-              </button>
-            </div>
-          )}
-
-          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+          <div className="space-y-3 max-h-[760px] overflow-y-auto pr-1">
             {PART_CATEGORIES.map(cat => (
               <div key={cat.name}>
-                <div className="font-mono text-[10px] font-extrabold text-slate-500 tracking-widest mb-1.5">
+                <div className="font-mono text-[10px] font-extrabold text-slate-500 tracking-widest mb-1.5 px-1">
                   {cat.name.toUpperCase()}
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -3811,11 +3898,13 @@
                     return (
                       <button key={pid} onClick={() => onSelectPart(pid)}
                         className={`p-2 rounded-lg border-2 text-left transition-all ${
-                          isSel ? "bg-emerald-100 border-emerald-500 shadow" :
-                          "bg-white border-slate-200 hover:border-emerald-400"}`}>
-                        <div className="text-base leading-none mb-0.5">{p.emoji}</div>
-                        <div className="text-[11px] font-bold leading-tight">{p.name}</div>
-                        <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">{p.desc}</div>
+                          isSel ? "bg-emerald-100 border-emerald-500 shadow ring-2 ring-emerald-300" :
+                          "bg-white border-slate-200 hover:border-emerald-400 hover:shadow-sm"}`}>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <PartIcon partId={pid} size={26} />
+                          <span className="text-[11px] font-extrabold text-slate-900 leading-tight">{p.name}</span>
+                        </div>
+                        <div className="text-[9px] text-slate-500 leading-tight">{p.desc}</div>
                       </button>
                     );
                   })}
@@ -3827,7 +3916,697 @@
       );
     }
 
-    function BBStatusPanel({ result, placed, onRemove, switches, onToggleSwitch }) {
+    /* 부품함 미니 아이콘 (실제 모양과 비슷한 미니 SVG) */
+    function PartIcon({ partId, size = 24 }) {
+      const p = BB_PARTS[partId];
+      const w = size, h = size;
+      if (p.voltage !== undefined) {
+        if (partId === "battery9v") {
+          return (
+            <svg width={w} height={h} viewBox="0 0 24 24">
+              <rect x="6" y="3" width="12" height="18" rx="1.5" fill="#dc2626" stroke="#7f1d1d" strokeWidth="1" />
+              <rect x="9" y="1" width="2" height="3" fill="#94a3b8" />
+              <rect x="13" y="1" width="2" height="3" fill="#94a3b8" />
+              <text x="12" y="14" textAnchor="middle" fontSize="6" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">9V</text>
+            </svg>
+          );
+        }
+        return (
+          <svg width={w} height={h} viewBox="0 0 24 24">
+            <rect x="3" y="9" width="18" height="6" rx="1" fill={p.color} stroke="#1e293b" strokeWidth="0.8" />
+            <rect x="21" y="11" width="2" height="2" fill="#94a3b8" />
+            <text x="12" y="13.5" textAnchor="middle" fontSize="5" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">{p.voltage}V</text>
+          </svg>
+        );
+      }
+      if (p.rated !== undefined) {
+        return (
+          <svg width={w} height={h} viewBox="0 0 24 24">
+            <circle cx="12" cy="9" r="6" fill="#fef3c7" stroke="#a16207" strokeWidth="1" />
+            <path d="M 9 11 Q 12 6 15 11" fill="none" stroke="#dc2626" strokeWidth="1" />
+            <rect x="9" y="14" width="6" height="3" fill="#94a3b8" />
+            <line x1="10" y1="17" x2="10" y2="22" stroke="#475569" strokeWidth="1.2" />
+            <line x1="14" y1="17" x2="14" y2="22" stroke="#475569" strokeWidth="1.2" />
+          </svg>
+        );
+      }
+      if (p.vf !== undefined) {
+        return (
+          <svg width={w} height={h} viewBox="0 0 24 24">
+            <path d="M 8 4 Q 8 2 10 2 L 14 2 Q 16 2 16 4 L 16 12 Q 12 14 8 12 Z" fill={p.color} opacity="0.7" stroke={p.color} strokeWidth="1" />
+            <ellipse cx="12" cy="13" rx="4" ry="1" fill={p.color} />
+            <line x1="11" y1="14" x2="11" y2="22" stroke="#475569" strokeWidth="1.2" />
+            <line x1="13" y1="14" x2="13" y2="22" stroke="#475569" strokeWidth="1.2" />
+          </svg>
+        );
+      }
+      if (p.ohm !== undefined) {
+        return (
+          <svg width={w} height={h} viewBox="0 0 24 24">
+            <line x1="2" y1="12" x2="6" y2="12" stroke="#94a3b8" strokeWidth="1.5" />
+            <line x1="18" y1="12" x2="22" y2="12" stroke="#94a3b8" strokeWidth="1.5" />
+            <rect x="6" y="9" width="12" height="6" rx="2" fill="#fde68a" stroke="#a16207" strokeWidth="0.8" />
+            <line x1="9" y1="9" x2="9" y2="15" stroke="#a16207" strokeWidth="1" />
+            <line x1="11" y1="9" x2="11" y2="15" stroke="#1e293b" strokeWidth="1" />
+            <line x1="13" y1="9" x2="13" y2="15" stroke={p.ohm >= 1000 ? "#dc2626" : "#a16207"} strokeWidth="1" />
+            <line x1="15" y1="9" x2="15" y2="15" stroke="#fbbf24" strokeWidth="1" />
+          </svg>
+        );
+      }
+      if (p.transistor) {
+        return (
+          <svg width={w} height={h} viewBox="0 0 24 24">
+            <path d="M 5 8 Q 5 4 9 4 L 15 4 Q 19 4 19 8 L 19 13 Q 19 15 17 15 L 7 15 Q 5 15 5 13 Z"
+              fill="#1e293b" stroke={p.color} strokeWidth="1" />
+            <line x1="8" y1="15" x2="8" y2="22" stroke="#475569" strokeWidth="1.2" />
+            <line x1="12" y1="15" x2="12" y2="22" stroke="#475569" strokeWidth="1.2" />
+            <line x1="16" y1="15" x2="16" y2="22" stroke="#475569" strokeWidth="1.2" />
+            <text x="12" y="11" textAnchor="middle" fontSize="5" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">{p.transistor}</text>
+          </svg>
+        );
+      }
+      if (p.toggle) {
+        return (
+          <svg width={w} height={h} viewBox="0 0 24 24">
+            <rect x="4" y="8" width="16" height="8" rx="2" fill="#475569" stroke="#1e293b" strokeWidth="1" />
+            <circle cx="8" cy="12" r="2.5" fill="#94a3b8" stroke="white" strokeWidth="0.8" />
+            <line x1="6" y1="16" x2="6" y2="22" stroke="#475569" strokeWidth="1.2" />
+            <line x1="18" y1="16" x2="18" y2="22" stroke="#475569" strokeWidth="1.2" />
+          </svg>
+        );
+      }
+      if (p.jumper) {
+        return (
+          <svg width={w} height={h} viewBox="0 0 24 24">
+            <path d="M 3 18 Q 12 4 21 18" fill="none" stroke={p.color} strokeWidth="2.5" strokeLinecap="round" />
+            <circle cx="3" cy="18" r="1.5" fill={p.color} />
+            <circle cx="21" cy="18" r="1.5" fill={p.color} />
+          </svg>
+        );
+      }
+      return <div style={{ width: w, height: h }}>{p.emoji}</div>;
+    }
+
+    /* ----- 작업 영역 (세로 브레드보드) ----- */
+    function BBWorkArea({ board, placed, pendingPins, selectedPart, editingComp, selectedComp,
+                          onPinClick, onCompClick, onStartMove, onRemoveSelected, onCancelSelected,
+                          result, powerOn, mode, switches, onToggleSwitch }) {
+      const isFull = board === "full";
+      const cols = isFull ? 30 : 10;
+      // 세로형 - 열이 세로로 길게 늘어남
+      const cellH = isFull ? 18 : 26;     // 세로 한 칸 높이 (구멍 사이 간격)
+      const padY = 40;
+      const railWidth = isFull ? 32 : 0;
+      const colGroupGap = 22;             // a-e 와 f-j 사이 가운데 홈
+      const rowW = 22;                    // 가로 한 칸 너비
+      const totalW = (isFull ? railWidth * 2 + 16 : 0) + rowW * 5 + colGroupGap + rowW * 5 + 70;
+      const totalH = padY * 2 + cellH * cols;
+
+      // 핀 좌표 계산 (세로 배치)
+      const pinXY = (pinId) => {
+        if (!pinId) return null;
+        if (pinId.startsWith("rail-")) {
+          const m = pinId.match(/rail-([PN])([LR])-(\d+)/);
+          if (!m) return null;
+          const [_, sign, side, colS] = m;
+          const col = Number(colS);
+          const y = padY + (col - 1) * cellH + cellH / 2;
+          let x;
+          if (side === "L") x = sign === "P" ? 14 : 14 + railWidth - 16;
+          else x = totalW - (sign === "P" ? railWidth + 2 : 14);
+          return { x, y };
+        }
+        const m = pinId.match(/row-([a-j])-(\d+)/);
+        if (!m) return null;
+        const [_, row, colS] = m;
+        const col = Number(colS);
+        const rowIdx = "abcdefghij".indexOf(row);
+        const isLeft = rowIdx < 5;
+        const localRow = isLeft ? rowIdx : rowIdx - 5;
+        const railOffset = isFull ? railWidth + 8 : 0;
+        const xBase = railOffset + 16 + (isLeft ? 0 : (rowW * 5 + colGroupGap)) + localRow * rowW;
+        return { x: xBase, y: padY + (col - 1) * cellH + cellH / 2 };
+      };
+
+      const usedPins = new Set();
+      placed.forEach((c, idx) => {
+        // 이동 중인 부품의 핀은 사용 안 된 것으로 침
+        if (editingComp && editingComp.idx === idx) return;
+        c.pins.forEach(p => p && usedPins.add(p));
+      });
+      pendingPins.forEach(p => usedPins.add(p));
+
+      const activeCompIndices = new Set();
+      if (result.ok && result.pathDetails) {
+        result.pathDetails.forEach(d => activeCompIndices.add(d.compIdx));
+      }
+
+      const renderRailHole = (sign, side, col) => {
+        const pinId = `rail-${sign}${side}-${col}`;
+        const pos = pinXY(pinId);
+        const isUsed = usedPins.has(pinId);
+        const isPending = pendingPins.includes(pinId);
+        const isHover = mode === "placing" || mode === "editing" || mode === "jumper_drawing" || mode === "idle";
+        return (
+          <g key={pinId} style={{ cursor: "pointer" }} onClick={() => onPinClick(pinId)}>
+            <circle cx={pos.x} cy={pos.y} r="6" fill="transparent" />
+            <circle cx={pos.x} cy={pos.y} r="3.2"
+              fill={isPending ? "#10b981" : isUsed ? "#1e293b" : "white"}
+              stroke={isPending ? "#047857" : sign === "P" ? "#dc2626" : "#1e40af"}
+              strokeWidth="1.2" />
+          </g>
+        );
+      };
+
+      const renderHole = (row, col) => {
+        const pinId = `row-${row}-${col}`;
+        const pos = pinXY(pinId);
+        const isUsed = usedPins.has(pinId);
+        const isPending = pendingPins.includes(pinId);
+        const r = 3.5;
+        return (
+          <g key={pinId} style={{ cursor: "pointer" }} onClick={() => onPinClick(pinId)}>
+            <rect x={pos.x - 6} y={pos.y - 6} width="12" height="12" fill="transparent" />
+            <rect x={pos.x - r} y={pos.y - r} width={r * 2} height={r * 2} rx="1"
+              fill={isPending ? "#10b981" : isUsed ? "#475569" : "#1e293b"}
+              stroke={isPending ? "#047857" : "#475569"}
+              strokeWidth={isPending ? "1.6" : "0.6"} />
+          </g>
+        );
+      };
+
+      return (
+        <div className="bg-white rounded-2xl border-2 border-slate-200 p-3">
+          <div className="font-extrabold text-slate-900 mb-2 flex items-center justify-between">
+            <span>💡 작업 영역</span>
+            <span className="text-xs font-mono text-slate-500">{isFull ? "풀사이즈 (30열, 세로)" : "미니 (10열, 세로)"}</span>
+          </div>
+          <div className="bg-gradient-to-br from-slate-50 to-emerald-50 rounded-xl p-3 overflow-auto" style={{ maxHeight: "78vh" }}>
+            <svg viewBox={`0 0 ${totalW} ${totalH}`} className="block mx-auto"
+                 style={{ width: totalW, maxWidth: "100%", height: "auto" }}
+                 onClick={(e) => {
+                   // 빈 영역 클릭하면 선택 해제
+                   if (e.target.tagName === "svg" && selectedComp !== null) onCancelSelected();
+                 }}>
+              {/* 보드 본체 */}
+              <rect x="2" y="2" width={totalW - 4} height={totalH - 4} rx="14"
+                fill="#fafaf9" stroke="#cbd5e1" strokeWidth="2" />
+
+              {/* 풀사이즈 양쪽 +/- 레일 */}
+              {isFull && (
+                <g>
+                  {/* 왼쪽 레일 (+ 빨강 / − 파랑) */}
+                  <line x1={14} y1={padY - 6} x2={14} y2={totalH - padY + 6} stroke="#dc2626" strokeWidth="1.5" />
+                  <line x1={14 + railWidth - 16} y1={padY - 6} x2={14 + railWidth - 16} y2={totalH - padY + 6} stroke="#1e40af" strokeWidth="1.5" />
+                  <text x={14} y={padY - 12} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
+                  <text x={14 + railWidth - 16} y={padY - 12} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
+                  {/* 오른쪽 레일 */}
+                  <line x1={totalW - railWidth - 2} y1={padY - 6} x2={totalW - railWidth - 2} y2={totalH - padY + 6} stroke="#dc2626" strokeWidth="1.5" />
+                  <line x1={totalW - 14} y1={padY - 6} x2={totalW - 14} y2={totalH - padY + 6} stroke="#1e40af" strokeWidth="1.5" />
+                  <text x={totalW - railWidth - 2} y={padY - 12} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
+                  <text x={totalW - 14} y={padY - 12} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
+
+                  {[...Array(cols)].map((_, i) => {
+                    const col = i + 1;
+                    return (
+                      <g key={`rails-${col}`}>
+                        {renderRailHole("P", "L", col)}
+                        {renderRailHole("N", "L", col)}
+                        {renderRailHole("P", "R", col)}
+                        {renderRailHole("N", "R", col)}
+                      </g>
+                    );
+                  })}
+                </g>
+              )}
+
+              {/* 가운데 홈 (세로) */}
+              <line
+                x1={(isFull ? railWidth + 8 : 0) + 16 + rowW * 5 + colGroupGap / 2}
+                y1={padY - 6}
+                x2={(isFull ? railWidth + 8 : 0) + 16 + rowW * 5 + colGroupGap / 2}
+                y2={totalH - padY + 6}
+                stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" />
+
+              {/* 행 라벨 (a~j는 가로로 표시) */}
+              {"abcdefghij".split("").map((row, ri) => {
+                const isLeft = ri < 5;
+                const localRow = isLeft ? ri : ri - 5;
+                const railOffset = isFull ? railWidth + 8 : 0;
+                const x = railOffset + 16 + (isLeft ? 0 : (rowW * 5 + colGroupGap)) + localRow * rowW;
+                return (
+                  <g key={`label-${row}`}>
+                    <text x={x} y={padY - 12} textAnchor="middle" fontSize="10" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">{row}</text>
+                    <text x={x} y={totalH - padY + 18} textAnchor="middle" fontSize="10" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">{row}</text>
+                  </g>
+                );
+              })}
+
+              {/* 열 라벨 (1, 5, 10, ...) - 세로 양쪽에 */}
+              {[...Array(cols)].map((_, i) => {
+                const col = i + 1;
+                if (col !== 1 && col !== cols && col % 5 !== 0) return null;
+                const y = padY + (col - 1) * cellH + cellH / 2 + 3;
+                return (
+                  <g key={`col-${col}`}>
+                    <text x={isFull ? 4 : 6} y={y} fontSize="9" fontWeight="bold" fill="#64748b" fontFamily="JetBrains Mono">{col}</text>
+                    <text x={totalW - (isFull ? 8 : 14)} y={y} fontSize="9" fontWeight="bold" fill="#64748b" fontFamily="JetBrains Mono">{col}</text>
+                  </g>
+                );
+              })}
+
+              {/* 모든 구멍 */}
+              {"abcdefghij".split("").map(row =>
+                [...Array(cols)].map((_, i) => renderHole(row, i + 1))
+              )}
+
+              {/* 배치된 부품들 */}
+              {placed.map((c, idx) => {
+                if (editingComp && editingComp.idx === idx) return null; // 이동 중인 부품은 임시 숨김
+                return (
+                  <g key={idx} onClick={(e) => onCompClick(idx, e)} style={{ cursor: mode === "idle" || mode === "selected" ? "pointer" : "default" }}>
+                    <BBComponent component={c} index={idx} pinXY={pinXY} result={result}
+                      active={activeCompIndices.has(idx)} powerOn={powerOn}
+                      isSelected={selectedComp === idx} switches={switches} />
+                  </g>
+                );
+              })}
+
+              {/* 전류 입자 애니메이션 */}
+              {result.ok && powerOn && placed.map((c, idx) => {
+                if (!activeCompIndices.has(idx)) return null;
+                const part = BB_PARTS[c.partId];
+                if (part.voltage !== undefined) return null;
+                if (editingComp && editingComp.idx === idx) return null;
+                const p0 = pinXY(c.pins[0]);
+                const p1 = pinXY(c.pins[1]);
+                if (!p0 || !p1) return null;
+                const speed = Math.max(0.4, 1.5 - result.I * 30);
+                return [0, 0.3, 0.6].map(d => (
+                  <circle key={`i${idx}-${d}`} r="2.4" fill="#fbbf24" stroke="#a16207" strokeWidth="0.5">
+                    <animate attributeName="cx" values={`${p0.x};${p1.x}`} dur={`${speed}s`} repeatCount="indefinite" begin={`${d}s`} />
+                    <animate attributeName="cy" values={`${p0.y};${p1.y}`} dur={`${speed}s`} repeatCount="indefinite" begin={`${d}s`} />
+                  </circle>
+                ));
+              })}
+            </svg>
+          </div>
+
+          {/* 선택된 부품 액션 메뉴 */}
+          {selectedComp !== null && placed[selectedComp] && (
+            <div className="mt-3 bg-emerald-50 border-2 border-emerald-400 rounded-xl p-3 flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-1">
+                <PartIcon partId={placed[selectedComp].partId} size={28} />
+                <div>
+                  <div className="font-bold text-sm text-emerald-900">{BB_PARTS[placed[selectedComp].partId].name}</div>
+                  <div className="text-[10px] text-slate-600 font-mono">{placed[selectedComp].pins.filter(Boolean).join(" ↔ ")}</div>
+                </div>
+              </div>
+              {BB_PARTS[placed[selectedComp].partId].toggle && (
+                <button onClick={() => onToggleSwitch(selectedComp)}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-xs ${switches[selectedComp] ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-700"}`}>
+                  {switches[selectedComp] ? "ON" : "OFF"} 토글
+                </button>
+              )}
+              <button onClick={() => onStartMove(selectedComp)}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-xs">
+                ✏️ 위치 이동
+              </button>
+              <button onClick={onRemoveSelected}
+                className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-lg font-bold text-xs">
+                🗑️ 삭제
+              </button>
+              <button onClick={onCancelSelected}
+                className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg font-bold text-xs">
+                ✕
+              </button>
+            </div>
+          )}
+
+          {result.warnings && result.warnings.length > 0 && (
+            <div className="mt-3 bg-rose-100 border-2 border-rose-400 rounded-xl p-3 flex items-center gap-2">
+              <span className="text-2xl">💥</span>
+              <div className="flex-1 text-sm text-rose-800">
+                <b>{result.message}</b>
+                <div className="text-xs mt-1">전류 {(result.I * 1000).toFixed(1)}mA — 정격을 초과했어요</div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ----- 부품 그래픽 (Tinkercad 스타일 고품질) ----- */
+    function BBComponent({ component, index, pinXY, result, active, powerOn, isSelected, switches }) {
+      const part = BB_PARTS[component.partId];
+      const positions = component.pins.map(p => pinXY(p));
+      if (positions.some(p => !p)) return null;
+
+      const detail = result.pathDetails?.find(d => d.compIdx === index);
+      const burned = result.warnings?.some(w => w.idx === index && (w.type === "burned" || w.type === "explode"));
+
+      // 선택 강조 외곽선
+      const SelectionRing = ({ cx, cy, w, h }) => isSelected ? (
+        <rect x={cx - w / 2 - 4} y={cy - h / 2 - 4} width={w + 8} height={h + 8} rx="6"
+          fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="4,3">
+          <animate attributeName="stroke-dashoffset" values="0;-14" dur="0.8s" repeatCount="indefinite" />
+        </rect>
+      ) : null;
+
+      // 배터리
+      if (part.voltage !== undefined) {
+        const [p0, p1] = positions;
+        // 두 핀의 가운데 위쪽에 배터리 본체를 그림
+        const cx = (p0.x + p1.x) / 2;
+        const cy = (p0.y + p1.y) / 2 - 50;
+        const isBig = component.partId === "battery9v";
+
+        return (
+          <g>
+            {/* 악어집게선 (+ 빨강) */}
+            <path d={`M ${p0.x} ${p0.y} C ${p0.x - 10} ${p0.y - 20}, ${cx - 28} ${cy + 20}, ${cx - 22} ${cy + (isBig ? 28 : 12)}`}
+              fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" />
+            {/* 악어집게선 (− 검정) */}
+            <path d={`M ${p1.x} ${p1.y} C ${p1.x + 10} ${p1.y - 20}, ${cx + 28} ${cy + 20}, ${cx + 22} ${cy + (isBig ? 28 : 12)}`}
+              fill="none" stroke="#1e293b" strokeWidth="2.5" strokeLinecap="round" />
+            {/* 핀 부근 +/- 라벨 (확실히 보이게) */}
+            <g transform={`translate(${p0.x}, ${p0.y + 14})`}>
+              <circle cx="0" cy="0" r="7" fill="#dc2626" stroke="white" strokeWidth="1.5" />
+              <text x="0" y="3" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">+</text>
+            </g>
+            <g transform={`translate(${p1.x}, ${p1.y + 14})`}>
+              <circle cx="0" cy="0" r="7" fill="#1e293b" stroke="white" strokeWidth="1.5" />
+              <text x="0" y="3" textAnchor="middle" fontSize="9" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">−</text>
+            </g>
+
+            {/* 배터리 본체 */}
+            {isBig ? (
+              // 9V 사각 배터리 - 사실적
+              <g transform={`translate(${cx - 24}, ${cy - 18})`}>
+                <SelectionRing cx={24} cy={18} w={48} h={36} />
+                {/* 본체 */}
+                <rect x="0" y="0" width="48" height="36" rx="3" fill="url(#bat9grad)" stroke="#7f1d1d" strokeWidth="1.2" />
+                <defs>
+                  <linearGradient id="bat9grad" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" />
+                    <stop offset="50%" stopColor="#b91c1c" />
+                    <stop offset="100%" stopColor="#7f1d1d" />
+                  </linearGradient>
+                </defs>
+                {/* 라벨 */}
+                <rect x="4" y="6" width="40" height="13" rx="1" fill="#fef3c7" stroke="#a16207" strokeWidth="0.5" />
+                <text x="24" y="15.5" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#7f1d1d" fontFamily="JetBrains Mono">9V</text>
+                <text x="24" y="27" textAnchor="middle" fontSize="6" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">ALKALINE</text>
+                {/* 위쪽 단자 */}
+                <circle cx="14" cy="-2" r="3.5" fill="#cbd5e1" stroke="#64748b" strokeWidth="0.8" />
+                <text x="14" y="0.5" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
+                <rect x="30" y="-5" width="8" height="6" rx="1" fill="#cbd5e1" stroke="#64748b" strokeWidth="0.8" />
+                <text x="34" y="0" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
+              </g>
+            ) : (
+              // AA형 1.5V/3V 배터리
+              <g transform={`translate(${cx - 30}, ${cy - 8})`}>
+                <SelectionRing cx={30} cy={8} w={60} h={20} />
+                {/* 음극 (-) 끝 평평 */}
+                <rect x="0" y="2" width="6" height="12" rx="1" fill="#cbd5e1" stroke="#64748b" strokeWidth="0.6" />
+                {/* 본체 */}
+                <rect x="6" y="0" width="48" height="16" rx="1" fill={part.color} stroke="#7c2d12" strokeWidth="0.8" />
+                <rect x="6" y="0" width="48" height="3" fill="white" opacity="0.3" />
+                {/* 양극 (+) 끝 돌출 */}
+                <rect x="54" y="4" width="3" height="8" fill="#cbd5e1" stroke="#64748b" strokeWidth="0.6" />
+                {/* 라벨 */}
+                <text x="30" y="10" textAnchor="middle" fontSize="8" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">{part.voltage}V</text>
+                <text x="3" y="10" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
+                <text x="58" y="10" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
+              </g>
+            )}
+          </g>
+        );
+      }
+
+      // 점퍼선
+      if (part.jumper) {
+        const [p0, p1] = positions;
+        const dx = p1.x - p0.x, dy = p1.y - p0.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        const lift = Math.min(20, len * 0.25);
+        // 컨트롤 포인트 (중간점에서 보드 위쪽으로 살짝 띄움)
+        const mx = (p0.x + p1.x) / 2;
+        const my = (p0.y + p1.y) / 2 - lift;
+        return (
+          <g>
+            {isSelected && (
+              <path d={`M ${p0.x} ${p0.y} Q ${mx} ${my} ${p1.x} ${p1.y}`}
+                fill="none" stroke="#f59e0b" strokeWidth="6" opacity="0.4" strokeLinecap="round" />
+            )}
+            <path d={`M ${p0.x} ${p0.y} Q ${mx} ${my} ${p1.x} ${p1.y}`}
+              fill="none" stroke={part.color} strokeWidth="2.5" strokeLinecap="round" />
+            {/* 양 끝의 핀 단자 (실제 점퍼선 끝부분처럼) */}
+            <circle cx={p0.x} cy={p0.y} r="2.2" fill="#cbd5e1" stroke={part.color} strokeWidth="1" />
+            <circle cx={p1.x} cy={p1.y} r="2.2" fill="#cbd5e1" stroke={part.color} strokeWidth="1" />
+          </g>
+        );
+      }
+
+      // 저항 (사실적)
+      if (part.ohm !== undefined) {
+        const [p0, p1] = positions;
+        const cx = (p0.x + p1.x) / 2;
+        const cy = (p0.y + p1.y) / 2 - 22;
+        // 색띠 결정 (4밴드)
+        const BAND_COLORS = {
+          black: "#1e293b", brown: "#92400e", red: "#dc2626",
+          orange: "#ea580c", yellow: "#eab308", green: "#16a34a",
+          blue: "#2563eb", violet: "#7c3aed", grey: "#64748b",
+          white: "#f1f5f9", gold: "#fbbf24",
+        };
+        const ohmBands = {
+          100: ["brown", "black", "brown", "gold"],
+          330: ["orange", "orange", "brown", "gold"],
+          1000: ["brown", "black", "red", "gold"],
+          10000: ["brown", "black", "orange", "gold"],
+        }[part.ohm] || ["brown", "black", "brown", "gold"];
+
+        return (
+          <g>
+            <SelectionRing cx={cx} cy={cy} w={50} h={24} />
+            {/* 다리 */}
+            <line x1={p0.x} y1={p0.y} x2={cx - 22} y2={cy} stroke="#cbd5e1" strokeWidth="1.6" />
+            <line x1={cx + 22} y1={cy} x2={p1.x} y2={p1.y} stroke="#cbd5e1" strokeWidth="1.6" />
+            {/* 본체 - 베이지색 사각 + 양 끝 둥근 원기둥 */}
+            <ellipse cx={cx - 22} cy={cy} rx="3" ry="6" fill="#fde68a" stroke="#a16207" strokeWidth="0.8" />
+            <ellipse cx={cx + 22} cy={cy} rx="3" ry="6" fill="#fde68a" stroke="#a16207" strokeWidth="0.8" />
+            <rect x={cx - 22} y={cy - 6} width="44" height="12" fill="#fde68a" stroke="#a16207" strokeWidth="0.8" />
+            {/* 본체 그라데이션 (입체감) */}
+            <rect x={cx - 22} y={cy - 6} width="44" height="3" fill="white" opacity="0.4" />
+            <rect x={cx - 22} y={cy + 4} width="44" height="2" fill="#1e293b" opacity="0.15" />
+            {/* 색띠 4개 */}
+            {ohmBands.map((c, i) => (
+              <rect key={i} x={cx - 14 + i * 7} y={cy - 6} width="3" height="12"
+                fill={BAND_COLORS[c]} />
+            ))}
+            {/* 값 라벨 */}
+            <text x={cx} y={cy - 12} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#1e293b" fontFamily="JetBrains Mono">
+              {part.ohm >= 1000 ? `${part.ohm / 1000}kΩ` : `${part.ohm}Ω`}
+            </text>
+          </g>
+        );
+      }
+
+      // LED (사실적)
+      if (part.vf !== undefined) {
+        const [p0, p1] = positions;
+        const cx = (p0.x + p1.x) / 2;
+        const cy = (p0.y + p1.y) / 2 - 26;
+        const isLit = result.ok && active && !burned;
+        const isReverse = detail?.reverse;
+        const ledColor = part.color;
+
+        return (
+          <g>
+            <SelectionRing cx={cx} cy={cy} w={28} h={36} />
+            {/* 다리 (긴쪽 = +, 짧은쪽 = -) */}
+            <line x1={p0.x} y1={p0.y} x2={cx - 5} y2={cy + 10} stroke="#cbd5e1" strokeWidth="1.6" />
+            <line x1={p1.x} y1={p1.y} x2={cx + 5} y2={cy + 10} stroke="#cbd5e1" strokeWidth="1.6" />
+            {/* +/- 표시 (확실히 구별되게) */}
+            <text x={p0.x} y={p0.y + 16} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
+            <text x={p1.x} y={p1.y + 16} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
+
+            {/* 빛 효과 */}
+            {isLit && (
+              <>
+                <circle cx={cx} cy={cy} r="22" fill={ledColor} opacity="0.2" />
+                <circle cx={cx} cy={cy} r="14" fill={ledColor} opacity="0.4" />
+                {[...Array(8)].map((_, i) => {
+                  const a = (i * 45) * Math.PI / 180;
+                  return <line key={i}
+                    x1={cx + Math.cos(a) * 12} y1={cy + Math.sin(a) * 12}
+                    x2={cx + Math.cos(a) * 22} y2={cy + Math.sin(a) * 22}
+                    stroke={ledColor} strokeWidth="1.5" opacity="0.8" />;
+                })}
+              </>
+            )}
+
+            {/* LED 본체 - 돔 형태 */}
+            <defs>
+              <radialGradient id={`ledGrad${index}`} cx="0.4" cy="0.3">
+                <stop offset="0%" stopColor="white" stopOpacity={isLit ? 0.9 : 0.3} />
+                <stop offset="40%" stopColor={burned ? "#1e293b" : isLit ? ledColor : "#e2e8f0"} stopOpacity="0.8" />
+                <stop offset="100%" stopColor={burned ? "#0f172a" : isLit ? ledColor : "#cbd5e1"} stopOpacity="1" />
+              </radialGradient>
+            </defs>
+            {/* 받침 */}
+            <ellipse cx={cx} cy={cy + 9} rx="9" ry="2.5" fill="#475569" stroke="#1e293b" strokeWidth="0.5" />
+            {/* 돔 */}
+            <path d={`M ${cx - 9} ${cy + 9} L ${cx - 9} ${cy} Q ${cx - 9} ${cy - 9} ${cx} ${cy - 9} Q ${cx + 9} ${cy - 9} ${cx + 9} ${cy} L ${cx + 9} ${cy + 9} Z`}
+              fill={`url(#ledGrad${index})`} stroke={burned ? "#7f1d1d" : ledColor} strokeWidth="1" />
+            {/* 하이라이트 */}
+            {!burned && <ellipse cx={cx - 3} cy={cy - 4} rx="2" ry="3" fill="white" opacity={isLit ? 0.7 : 0.4} />}
+            {burned && <text x={cx} y={cy + 3} textAnchor="middle" fontSize="14">💥</text>}
+            {isReverse && (
+              <g transform={`translate(${cx}, ${cy + 18})`}>
+                <rect x="-22" y="-6" width="44" height="12" rx="3" fill="#fee2e2" stroke="#dc2626" strokeWidth="1" />
+                <text x="0" y="3" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#dc2626">역방향!</text>
+              </g>
+            )}
+            {!isLit && !isReverse && !burned && active === false && result.ok === false && (
+              <text x={cx} y={cy + 22} textAnchor="middle" fontSize="7" fill="#94a3b8">꺼짐</text>
+            )}
+          </g>
+        );
+      }
+
+      // 꼬마전구 (사실적)
+      if (part.rated !== undefined) {
+        const [p0, p1] = positions;
+        const cx = (p0.x + p1.x) / 2;
+        const cy = (p0.y + p1.y) / 2 - 30;
+        const isLit = result.ok && active && !burned;
+        const brightness = isLit ? Math.min(1, result.I / part.ratedI) : 0;
+
+        return (
+          <g>
+            <SelectionRing cx={cx} cy={cy} w={32} h={42} />
+            {/* 다리 */}
+            <line x1={p0.x} y1={p0.y} x2={cx - 4} y2={cy + 14} stroke="#cbd5e1" strokeWidth="1.6" />
+            <line x1={p1.x} y1={p1.y} x2={cx + 4} y2={cy + 14} stroke="#cbd5e1" strokeWidth="1.6" />
+            {/* 받침 (금속 스크류) */}
+            <rect x={cx - 6} y={cy + 8} width="12" height="6" fill="#94a3b8" stroke="#475569" strokeWidth="0.6" />
+            <line x1={cx - 6} y1={cy + 9.5} x2={cx + 6} y2={cy + 9.5} stroke="#1e293b" strokeWidth="0.5" />
+            <line x1={cx - 6} y1={cy + 11.5} x2={cx + 6} y2={cy + 11.5} stroke="#1e293b" strokeWidth="0.5" />
+
+            {/* 빛 효과 */}
+            {isLit && (
+              <>
+                <circle cx={cx} cy={cy} r={20 + brightness * 12} fill="#fbbf24" opacity={brightness * 0.4} />
+                <circle cx={cx} cy={cy} r={28 + brightness * 16} fill="#fbbf24" opacity={brightness * 0.2} />
+                {[...Array(8)].map((_, i) => {
+                  const a = (i * 45) * Math.PI / 180;
+                  return <line key={i}
+                    x1={cx + Math.cos(a) * 14} y1={cy + Math.sin(a) * 14}
+                    x2={cx + Math.cos(a) * (24 + brightness * 8)} y2={cy + Math.sin(a) * (24 + brightness * 8)}
+                    stroke="#fbbf24" strokeWidth="1.8" opacity={brightness * 0.9} strokeLinecap="round" />;
+                })}
+              </>
+            )}
+
+            {/* 유리구 */}
+            <defs>
+              <radialGradient id={`bulbGrad${index}`} cx="0.35" cy="0.3">
+                <stop offset="0%" stopColor="white" stopOpacity="0.95" />
+                <stop offset="60%" stopColor={burned ? "#1e293b" : isLit ? "#fef3c7" : "#f8fafc"} stopOpacity="0.85" />
+                <stop offset="100%" stopColor={burned ? "#0f172a" : isLit ? "#fde68a" : "#e2e8f0"} stopOpacity="1" />
+              </radialGradient>
+            </defs>
+            <ellipse cx={cx} cy={cy} rx="10" ry="11" fill={`url(#bulbGrad${index})`}
+              stroke={burned ? "#7f1d1d" : isLit ? "#a16207" : "#94a3b8"} strokeWidth="1.2" />
+            {/* 필라멘트 */}
+            {!burned && (
+              <g>
+                <path d={`M ${cx - 4} ${cy + 6} Q ${cx - 5} ${cy} ${cx - 2} ${cy - 2} Q ${cx} ${cy - 4} ${cx + 2} ${cy - 2} Q ${cx + 5} ${cy} ${cx + 4} ${cy + 6}`}
+                  fill="none" stroke={isLit ? "#dc2626" : "#475569"} strokeWidth="1.4" />
+                {isLit && (
+                  <path d={`M ${cx - 4} ${cy + 6} Q ${cx - 5} ${cy} ${cx - 2} ${cy - 2} Q ${cx} ${cy - 4} ${cx + 2} ${cy - 2} Q ${cx + 5} ${cy} ${cx + 4} ${cy + 6}`}
+                    fill="none" stroke="#fbbf24" strokeWidth="0.8" opacity="0.9" />
+                )}
+              </g>
+            )}
+            {burned && <text x={cx} y={cy + 4} textAnchor="middle" fontSize="14">💥</text>}
+            {/* 정격 라벨 */}
+            <text x={cx} y={cy - 16} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">{part.rated}V</text>
+          </g>
+        );
+      }
+
+      // 스위치 (DIP 스위치 스타일)
+      if (part.toggle) {
+        const [p0, p1] = positions;
+        const cx = (p0.x + p1.x) / 2;
+        const cy = (p0.y + p1.y) / 2 - 20;
+        const isOn = switches[index];
+        return (
+          <g>
+            <SelectionRing cx={cx} cy={cy} w={42} h={22} />
+            <line x1={p0.x} y1={p0.y} x2={cx - 16} y2={cy + 5} stroke="#cbd5e1" strokeWidth="1.6" />
+            <line x1={cx + 16} y1={cy + 5} x2={p1.x} y2={p1.y} stroke="#cbd5e1" strokeWidth="1.6" />
+            {/* 본체 */}
+            <rect x={cx - 18} y={cy - 8} width="36" height="16" rx="2" fill="#0f172a" stroke="#475569" strokeWidth="1" />
+            <rect x={cx - 18} y={cy - 8} width="36" height="3" fill="white" opacity="0.15" />
+            {/* 토글 레버 */}
+            <rect x={cx + (isOn ? 2 : -14)} y={cy - 5} width="12" height="10" rx="1.5"
+              fill={isOn ? "#10b981" : "#cbd5e1"} stroke="white" strokeWidth="0.6" />
+            <text x={cx} y={cy - 12} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">
+              {isOn ? "● ON" : "○ OFF"}
+            </text>
+          </g>
+        );
+      }
+
+      // 트랜지스터 (실제 TO-92 패키지처럼)
+      if (part.transistor) {
+        // pins 순서: [E, B, C] (사용자 요청)
+        const [pE, pB, pC] = positions;
+        const cx = (pE.x + pB.x + pC.x) / 3;
+        const cy = Math.min(pE.y, pB.y, pC.y) - 30;
+
+        return (
+          <g>
+            <SelectionRing cx={cx} cy={cy} w={28} h={28} />
+            {/* 다리들 */}
+            <line x1={pE.x} y1={pE.y} x2={cx - 8} y2={cy + 6} stroke="#cbd5e1" strokeWidth="1.6" />
+            <line x1={pB.x} y1={pB.y} x2={cx} y2={cy + 6} stroke="#cbd5e1" strokeWidth="1.6" />
+            <line x1={pC.x} y1={pC.y} x2={cx + 8} y2={cy + 6} stroke="#cbd5e1" strokeWidth="1.6" />
+            {/* 본체 - 검정 반원 (TO-92 패키지) */}
+            <defs>
+              <linearGradient id={`trGrad${index}`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#475569" />
+                <stop offset="50%" stopColor="#1e293b" />
+                <stop offset="100%" stopColor="#0f172a" />
+              </linearGradient>
+            </defs>
+            <path d={`M ${cx - 11} ${cy + 6} L ${cx - 11} ${cy - 6} Q ${cx - 11} ${cy - 12} ${cx - 5} ${cy - 12} L ${cx + 5} ${cy - 12} Q ${cx + 11} ${cy - 12} ${cx + 11} ${cy - 6} L ${cx + 11} ${cy + 6} Z`}
+              fill={`url(#trGrad${index})`} stroke={part.color} strokeWidth="1.2" />
+            <text x={cx} y={cy - 4} textAnchor="middle" fontSize="6" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">{part.transistor}</text>
+            <text x={cx} y={cy + 2} textAnchor="middle" fontSize="5" fill="#94a3b8" fontFamily="JetBrains Mono">{component.partId === "npn" ? "BC547" : "BC557"}</text>
+            {/* 핀 라벨 (E/B/C) */}
+            <text x={cx - 8} y={cy + 13} textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">E</text>
+            <text x={cx} y={cy + 13} textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">B</text>
+            <text x={cx + 8} y={cy + 13} textAnchor="middle" fontSize="6.5" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">C</text>
+            {detail?.transistor && !detail.transistorOn && (
+              <g transform={`translate(${cx}, ${cy + 22})`}>
+                <rect x="-22" y="-5" width="44" height="10" rx="2" fill="#fee2e2" stroke="#dc2626" strokeWidth="0.8" />
+                <text x="0" y="3" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#dc2626">B 미연결</text>
+              </g>
+            )}
+          </g>
+        );
+      }
+
+      return null;
+    }
+
+    /* ----- 상태판 ----- */
+    function BBStatusPanel({ result, placed, selectedComp, onSelectComp, onRemove, onStartMove, switches, onToggleSwitch }) {
       const statusColor =
         result.ok ? "#16a34a" :
         result.warnings && result.warnings.length > 0 ? "#dc2626" :
@@ -3839,8 +4618,7 @@
         "bg-amber-50 border-amber-400";
 
       return (
-        <div className="space-y-3 sticky top-28">
-          {/* 상태 */}
+        <div className="space-y-3">
           <div className={`rounded-2xl border-2 p-4 ${statusBg}`}>
             <div className="font-mono text-[10px] font-bold text-slate-500 tracking-widest mb-1">상태</div>
             <div className="font-extrabold text-base mb-2" style={{ color: statusColor }}>
@@ -3857,8 +4635,8 @@
                   <div className="font-mono font-extrabold text-emerald-700">{(result.I * 1000).toFixed(1)} mA</div>
                 </div>
                 <div className="bg-white rounded-lg p-2 border border-slate-200 col-span-2">
-                  <div className="text-[10px] font-bold text-slate-500">계산 (옴의 법칙)</div>
-                  <div className="font-mono text-[11px] text-slate-700">
+                  <div className="text-[10px] font-bold text-slate-500">옴의 법칙</div>
+                  <div className="font-mono text-[10px] text-slate-700">
                     I = ({result.V?.toFixed(1)} − {result.totalVdrop?.toFixed(1)}) ÷ {result.totalR?.toFixed(0)}Ω
                   </div>
                 </div>
@@ -3868,46 +4646,59 @@
               <div className="mt-3 space-y-1">
                 {result.warnings.map((w, i) => (
                   <div key={i} className="bg-rose-100 border border-rose-300 rounded p-2 text-xs text-rose-800 font-bold">
-                    ⚠️ {w.msg || (w.type === "short" ? "단락! 즉시 분리하세요" : "")}
+                    ⚠️ {w.msg || (w.type === "short" ? "단락! 즉시 분리" : "")}
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* 배치된 부품 목록 */}
-          <div className="bg-white rounded-2xl border-2 border-slate-200 p-4">
-            <div className="font-extrabold text-slate-900 mb-3 flex items-center justify-between">
+          <div className="bg-white rounded-2xl border-2 border-slate-200 p-3">
+            <div className="font-extrabold text-slate-900 mb-2 flex items-center justify-between text-sm">
               <span>🧰 배치된 부품</span>
               <span className="font-mono text-xs text-slate-500">{placed.length}개</span>
             </div>
             {placed.length === 0 ? (
-              <div className="text-sm text-slate-500 text-center py-4">아직 부품이 없어요</div>
+              <div className="text-xs text-slate-500 text-center py-4">아직 부품이 없어요</div>
             ) : (
-              <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
+              <div className="space-y-1 max-h-[420px] overflow-y-auto pr-1">
                 {placed.map((c, idx) => {
                   const p = BB_PARTS[c.partId];
+                  const isSel = selectedComp === idx;
                   const isSwitch = p.toggle;
                   const isOn = switches[idx];
                   return (
-                    <div key={idx} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200">
-                      <span className="text-base">{p.emoji}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-slate-800 truncate">{p.name}</div>
-                        <div className="text-[10px] text-slate-500 font-mono truncate">
-                          {c.pins.filter(Boolean).join(" ↔ ")}
+                    <div key={idx}
+                      onClick={() => onSelectComp(idx)}
+                      className={`p-2 rounded-lg border-2 cursor-pointer transition-all ${
+                        isSel ? "bg-emerald-50 border-emerald-500 shadow-sm" : "bg-slate-50 border-slate-200 hover:border-emerald-300"}`}>
+                      <div className="flex items-center gap-2">
+                        <PartIcon partId={c.partId} size={22} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-slate-800 truncate">{p.name}</div>
+                          <div className="text-[9px] text-slate-500 font-mono truncate">
+                            {c.pins.filter(Boolean).join(" ↔ ")}
+                          </div>
                         </div>
                       </div>
-                      {isSwitch && (
-                        <button onClick={() => onToggleSwitch(idx)}
-                          className={`text-[10px] font-bold px-2 py-1 rounded ${isOn ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-700"}`}>
-                          {isOn ? "ON" : "OFF"}
-                        </button>
+                      {isSel && (
+                        <div className="flex gap-1 mt-2 pt-2 border-t border-emerald-200">
+                          {isSwitch && (
+                            <button onClick={(e) => { e.stopPropagation(); onToggleSwitch(idx); }}
+                              className={`flex-1 text-[10px] font-bold py-1 rounded ${isOn ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-700"}`}>
+                              {isOn ? "ON" : "OFF"}
+                            </button>
+                          )}
+                          <button onClick={(e) => { e.stopPropagation(); onStartMove(idx); }}
+                            className="flex-1 text-[10px] font-bold py-1 bg-amber-500 text-white rounded hover:bg-amber-600">
+                            ✏️ 이동
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); onRemove(idx); }}
+                            className="flex-1 text-[10px] font-bold py-1 bg-rose-500 text-white rounded hover:bg-rose-600">
+                            🗑️ 삭제
+                          </button>
+                        </div>
                       )}
-                      <button onClick={() => onRemove(idx)}
-                        className="text-rose-500 hover:text-rose-700 text-sm font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-rose-50">
-                        ×
-                      </button>
                     </div>
                   );
                 })}
@@ -3916,380 +4707,6 @@
           </div>
         </div>
       );
-    }
-
-    function BBWorkArea({ board, placed, pendingPins, selectedPart, onPinClick, result, powerOn }) {
-      const isFull = board === "full";
-      // 풀: 30열 × (a~e + f~j) + 양쪽 +/- 레일 / 미니: 10열 × (a~e + f~j)
-      const cols = isFull ? 30 : 10;
-      const cellW = isFull ? 22 : 36;
-      const padX = isFull ? 60 : 30;
-      const railHeight = isFull ? 32 : 0;
-      const rowGroupGap = 24;
-      const totalW = padX * 2 + cellW * cols;
-      const rowH = 22;
-      const totalH = (isFull ? railHeight * 2 + 16 : 0) + rowH * 5 + rowGroupGap + rowH * 5 + 50;
-
-      // 핀 좌표
-      const pinXY = (pinId) => {
-        if (!pinId) return null;
-        if (pinId.startsWith("rail-")) {
-          const m = pinId.match(/rail-([PN])([LR])-(\d+)/);
-          if (!m) return null;
-          const [_, sign, side, colS] = m;
-          const col = Number(colS);
-          // 위쪽 양쪽 레일 (P 위, N 아래)
-          const x = padX + (col - 1) * cellW + cellW / 2;
-          let y;
-          if (side === "L") y = sign === "P" ? 14 : 14 + railHeight - 16;
-          else y = totalH - (sign === "P" ? railHeight + 2 : 14);
-          return { x, y };
-        }
-        const m = pinId.match(/row-([a-j])-(\d+)/);
-        if (!m) return null;
-        const [_, row, colS] = m;
-        const col = Number(colS);
-        const rowIdx = "abcdefghij".indexOf(row);
-        const isUpper = rowIdx < 5;
-        const localRow = isUpper ? rowIdx : rowIdx - 5;
-        const railOffset = isFull ? railHeight + 8 : 0;
-        const yBase = railOffset + 16 + (isUpper ? 0 : (rowH * 5 + rowGroupGap)) + localRow * rowH;
-        return { x: padX + (col - 1) * cellW + cellW / 2, y: yBase };
-      };
-
-      // 사용된 핀 집합
-      const usedPins = new Set();
-      placed.forEach(c => c.pins.forEach(p => p && usedPins.add(p)));
-      pendingPins.forEach(p => usedPins.add(p));
-
-      // 흐르는 부품들 (애니메이션용)
-      const activeCompIndices = new Set();
-      if (result.ok && result.pathDetails) {
-        result.pathDetails.forEach(d => activeCompIndices.add(d.compIdx));
-      }
-
-      const renderRailHole = (sign, side, col) => {
-        const pinId = `rail-${sign}${side}-${col}`;
-        const pos = pinXY(pinId);
-        const isUsed = usedPins.has(pinId);
-        const isPending = pendingPins.includes(pinId);
-        return (
-          <g key={pinId} style={{ cursor: selectedPart ? "pointer" : "default" }}
-             onClick={() => onPinClick(pinId)}>
-            <circle cx={pos.x} cy={pos.y} r="3.5"
-              fill={isPending ? "#10b981" : isUsed ? "#475569" : "white"}
-              stroke={isPending ? "#047857" : sign === "P" ? "#dc2626" : "#1e40af"}
-              strokeWidth="1.2" />
-          </g>
-        );
-      };
-
-      const renderHole = (row, col) => {
-        const pinId = `row-${row}-${col}`;
-        const pos = pinXY(pinId);
-        const isUsed = usedPins.has(pinId);
-        const isPending = pendingPins.includes(pinId);
-        const r = cellW > 30 ? 4.5 : 3;
-        return (
-          <g key={pinId} style={{ cursor: selectedPart ? "pointer" : "default" }}
-             onClick={() => onPinClick(pinId)}>
-            <rect x={pos.x - r} y={pos.y - r} width={r * 2} height={r * 2} rx="1"
-              fill={isPending ? "#10b981" : isUsed ? "#475569" : "#1e293b"}
-              stroke={isPending ? "#047857" : selectedPart ? "#10b98180" : "#475569"}
-              strokeWidth={isPending ? "2" : "0.8"} />
-          </g>
-        );
-      };
-
-      return (
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-3">
-          <div className="font-extrabold text-slate-900 mb-2 flex items-center justify-between">
-            <span>💡 작업 영역</span>
-            <span className="text-xs font-mono text-slate-500">{isFull ? "풀사이즈 (30열)" : "미니 (10열)"}</span>
-          </div>
-          <div className="bg-gradient-to-br from-slate-50 to-emerald-50 rounded-xl p-2 overflow-x-auto">
-            <svg viewBox={`0 0 ${totalW} ${totalH}`} className="w-full" style={{ minWidth: isFull ? 760 : 420 }}>
-              {/* 보드 배경 */}
-              <rect x="2" y="2" width={totalW - 4} height={totalH - 4} rx="10"
-                fill="#fafaf9" stroke="#cbd5e1" strokeWidth="2" />
-
-              {/* 풀사이즈 전원 레일 */}
-              {isFull && (
-                <g>
-                  {/* 상단 + 줄 */}
-                  <line x1={padX - 6} y1={14} x2={totalW - padX + 6} y2={14} stroke="#dc2626" strokeWidth="1.5" />
-                  <line x1={padX - 6} y1={14 + railHeight - 16} x2={totalW - padX + 6} y2={14 + railHeight - 16} stroke="#1e40af" strokeWidth="1.5" />
-                  <text x={padX - 14} y={18} fontSize="10" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
-                  <text x={padX - 14} y={14 + railHeight - 12} fontSize="10" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
-                  {/* 하단 + - 줄 */}
-                  <line x1={padX - 6} y1={totalH - railHeight - 2} x2={totalW - padX + 6} y2={totalH - railHeight - 2} stroke="#dc2626" strokeWidth="1.5" />
-                  <line x1={padX - 6} y1={totalH - 14} x2={totalW - padX + 6} y2={totalH - 14} stroke="#1e40af" strokeWidth="1.5" />
-                  <text x={padX - 14} y={totalH - railHeight + 2} fontSize="10" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
-                  <text x={padX - 14} y={totalH - 10} fontSize="10" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
-
-                  {[...Array(cols)].map((_, i) => {
-                    const col = i + 1;
-                    return (
-                      <g key={`rails-${col}`}>
-                        {renderRailHole("P", "L", col)}
-                        {renderRailHole("N", "L", col)}
-                        {renderRailHole("P", "R", col)}
-                        {renderRailHole("N", "R", col)}
-                      </g>
-                    );
-                  })}
-                </g>
-              )}
-
-              {/* 가운데 홈 */}
-              <line
-                x1={padX - 6}
-                y1={(isFull ? railHeight + 8 : 0) + 16 + rowH * 5 + rowGroupGap / 2}
-                x2={totalW - padX + 6}
-                y2={(isFull ? railHeight + 8 : 0) + 16 + rowH * 5 + rowGroupGap / 2}
-                stroke="#94a3b8" strokeWidth="1" strokeDasharray="3,3" />
-
-              {/* 행 라벨 (a~j) */}
-              {"abcdefghij".split("").map((row, ri) => {
-                const isUpper = ri < 5;
-                const localRow = isUpper ? ri : ri - 5;
-                const railOffset = isFull ? railHeight + 8 : 0;
-                const y = railOffset + 16 + (isUpper ? 0 : (rowH * 5 + rowGroupGap)) + localRow * rowH;
-                return (
-                  <g key={`label-${row}`}>
-                    <text x={padX - 18} y={y + 4} fontSize="10" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">{row}</text>
-                    <text x={totalW - padX + 8} y={y + 4} fontSize="10" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">{row}</text>
-                  </g>
-                );
-              })}
-
-              {/* 열 라벨 (1, 5, 10, ... 표시) */}
-              {[...Array(cols)].map((_, i) => {
-                const col = i + 1;
-                if (col !== 1 && col !== cols && col % 5 !== 0) return null;
-                return (
-                  <text key={`colL-${col}`} x={padX + (col - 1) * cellW + cellW / 2} y={(isFull ? railHeight + 8 : 0) + 11}
-                    textAnchor="middle" fontSize="9" fontWeight="bold" fill="#64748b" fontFamily="JetBrains Mono">{col}</text>
-                );
-              })}
-
-              {/* 모든 구멍 */}
-              {"abcdefghij".split("").map(row =>
-                [...Array(cols)].map((_, i) => renderHole(row, i + 1))
-              )}
-
-              {/* 배치된 부품 */}
-              {placed.map((c, idx) => (
-                <BBComponent key={idx} component={c} index={idx}
-                  pinXY={pinXY} result={result} active={activeCompIndices.has(idx)}
-                  powerOn={powerOn} />
-              ))}
-
-              {/* 전류 입자 애니메이션 */}
-              {result.ok && powerOn && placed.map((c, idx) => {
-                if (!activeCompIndices.has(idx)) return null;
-                const part = BB_PARTS[c.partId];
-                if (part.voltage !== undefined) return null; // 배터리 자체엔 입자 안 그림
-                const p0 = pinXY(c.pins[0]);
-                const p1 = pinXY(c.pins[1]);
-                if (!p0 || !p1) return null;
-                const speed = Math.max(0.4, 1.5 - result.I * 30);
-                return [0, 0.3, 0.6].map(d => (
-                  <circle key={`i${idx}-${d}`} r="2.5" fill="#fbbf24">
-                    <animate attributeName="cx" values={`${p0.x};${p1.x}`} dur={`${speed}s`} repeatCount="indefinite" begin={`${d}s`} />
-                    <animate attributeName="cy" values={`${p0.y};${p1.y}`} dur={`${speed}s`} repeatCount="indefinite" begin={`${d}s`} />
-                  </circle>
-                ));
-              })}
-            </svg>
-          </div>
-
-          {/* 회로 시각 안내 */}
-          {result.warnings && result.warnings.length > 0 && (
-            <div className="mt-3 bg-rose-100 border-2 border-rose-400 rounded-xl p-3 flex items-center gap-2">
-              <span className="text-2xl">💥</span>
-              <div className="flex-1 text-sm text-rose-800">
-                <b>{result.message}</b>
-                <div className="text-xs mt-1">전류 {(result.I * 1000).toFixed(1)}mA — 정격을 초과했어요</div>
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    function BBComponent({ component, index, pinXY, result, active, powerOn }) {
-      const part = BB_PARTS[component.partId];
-      const positions = component.pins.map(p => pinXY(p));
-      if (positions.some(p => !p)) return null;
-
-      // 부품에 해당하는 detail (LED 역방향, 트랜지스터 OFF 등)
-      const detail = result.pathDetails?.find(d => d.compIdx === index);
-      const burned = result.warnings?.some(w => w.idx === index && (w.type === "burned" || w.type === "explode"));
-
-      // 배터리
-      if (part.voltage !== undefined) {
-        const [p0, p1] = positions;
-        const cx = (p0.x + p1.x) / 2;
-        const cy = (p0.y + p1.y) / 2 - 30;
-        return (
-          <g>
-            <line x1={p0.x} y1={p0.y} x2={cx - 22} y2={cy + 6} stroke="#dc2626" strokeWidth="2" />
-            <line x1={p1.x} y1={p1.y} x2={cx + 22} y2={cy + 6} stroke="#1e293b" strokeWidth="2" />
-            <rect x={cx - 28} y={cy - 14} width="56" height="22" rx="4"
-              fill={part.color} stroke="#1e293b" strokeWidth="1.5" />
-            <text x={cx} y={cy + 1} textAnchor="middle" fontSize="10" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">
-              {part.voltage}V
-            </text>
-            <text x={cx - 22} y={cy + 18} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
-            <text x={cx + 22} y={cy + 18} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
-          </g>
-        );
-      }
-
-      // 점퍼선
-      if (part.jumper) {
-        const [p0, p1] = positions;
-        return (
-          <path d={`M ${p0.x} ${p0.y} Q ${(p0.x + p1.x) / 2} ${Math.min(p0.y, p1.y) - 18} ${p1.x} ${p1.y}`}
-            fill="none" stroke={part.color} strokeWidth="2.5" strokeLinecap="round" />
-        );
-      }
-
-      // 저항
-      if (part.ohm !== undefined) {
-        const [p0, p1] = positions;
-        const cx = (p0.x + p1.x) / 2;
-        const cy = (p0.y + p1.y) / 2 - 14;
-        const dx = p1.x - p0.x;
-        const angle = Math.atan2(p1.y - p0.y, dx) * 180 / Math.PI;
-        return (
-          <g>
-            <line x1={p0.x} y1={p0.y} x2={cx - 18} y2={cy} stroke="#94a3b8" strokeWidth="1.5" />
-            <line x1={cx + 18} y1={cy} x2={p1.x} y2={p1.y} stroke="#94a3b8" strokeWidth="1.5" />
-            <rect x={cx - 18} y={cy - 6} width="36" height="12" rx="2"
-              fill="#fde68a" stroke="#a16207" strokeWidth="1" />
-            <line x1={cx - 14} y1={cy - 6} x2={cx - 14} y2={cy + 6} stroke="#a16207" strokeWidth="2" />
-            <line x1={cx - 8} y1={cy - 6} x2={cx - 8} y2={cy + 6} stroke="#1e293b" strokeWidth="2" />
-            <line x1={cx} y1={cy - 6} x2={cx} y2={cy + 6} stroke={part.ohm >= 1000 ? "#dc2626" : "#a16207"} strokeWidth="2" />
-            <text x={cx} y={cy - 10} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#1e293b" fontFamily="JetBrains Mono">
-              {part.ohm >= 1000 ? `${part.ohm/1000}kΩ` : `${part.ohm}Ω`}
-            </text>
-          </g>
-        );
-      }
-
-      // LED
-      if (part.vf !== undefined) {
-        const [p0, p1] = positions;
-        const cx = (p0.x + p1.x) / 2;
-        const cy = (p0.y + p1.y) / 2 - 18;
-        const isLit = result.ok && active && !burned;
-        const isReverse = detail?.reverse;
-        return (
-          <g>
-            <line x1={p0.x} y1={p0.y} x2={cx - 8} y2={cy + 6} stroke="#94a3b8" strokeWidth="1.5" />
-            <line x1={p1.x} y1={p1.y} x2={cx + 8} y2={cy + 6} stroke="#94a3b8" strokeWidth="1.5" />
-            {/* + 다리 표시 (긴쪽) */}
-            <text x={p0.x} y={p0.y + 13} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#dc2626" fontFamily="JetBrains Mono">+</text>
-            <text x={p1.x} y={p1.y + 13} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#1e40af" fontFamily="JetBrains Mono">−</text>
-            {isLit && (
-              <>
-                <circle cx={cx} cy={cy} r="14" fill={part.color} opacity="0.4" />
-                <circle cx={cx} cy={cy} r="22" fill={part.color} opacity="0.2" />
-              </>
-            )}
-            <circle cx={cx} cy={cy} r="9"
-              fill={burned ? "#1e293b" : isLit ? part.color : "#cbd5e1"}
-              stroke={burned ? "#7f1d1d" : isLit ? part.color : "#64748b"} strokeWidth="2" />
-            {burned && <text x={cx} y={cy + 4} textAnchor="middle" fontSize="14">💥</text>}
-            {isReverse && <text x={cx} y={cy + 25} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#dc2626">역방향!</text>}
-          </g>
-        );
-      }
-
-      // 꼬마전구
-      if (part.rated !== undefined) {
-        const [p0, p1] = positions;
-        const cx = (p0.x + p1.x) / 2;
-        const cy = (p0.y + p1.y) / 2 - 22;
-        const isLit = result.ok && active && !burned;
-        const brightness = isLit ? Math.min(1, result.I / part.ratedI) : 0;
-        return (
-          <g>
-            <line x1={p0.x} y1={p0.y} x2={cx - 6} y2={cy + 10} stroke="#94a3b8" strokeWidth="1.5" />
-            <line x1={p1.x} y1={p1.y} x2={cx + 6} y2={cy + 10} stroke="#94a3b8" strokeWidth="1.5" />
-            <rect x={cx - 7} y={cy + 6} width="14" height="6" fill="#94a3b8" />
-            {isLit && (
-              <>
-                <circle cx={cx} cy={cy} r={14 + brightness * 8} fill="#fbbf24" opacity={brightness * 0.5} />
-                <circle cx={cx} cy={cy} r={22 + brightness * 12} fill="#fbbf24" opacity={brightness * 0.25} />
-                {[...Array(6)].map((_, i) => {
-                  const a = (i * 60) * Math.PI / 180;
-                  return <line key={i}
-                    x1={cx + Math.cos(a) * 14} y1={cy + Math.sin(a) * 14}
-                    x2={cx + Math.cos(a) * (22 + brightness * 6)} y2={cy + Math.sin(a) * (22 + brightness * 6)}
-                    stroke="#fbbf24" strokeWidth="2" opacity={brightness * 0.8} />;
-                })}
-              </>
-            )}
-            <circle cx={cx} cy={cy} r="11"
-              fill={burned ? "#1e293b" : isLit ? "#fef3c7" : "#e2e8f0"}
-              stroke={burned ? "#7f1d1d" : "#64748b"} strokeWidth="1.5" />
-            {!burned && (
-              <path d={`M ${cx - 5} ${cy + 3} Q ${cx} ${cy - 4} ${cx + 5} ${cy + 3}`}
-                fill="none" stroke={isLit ? "#dc2626" : "#94a3b8"} strokeWidth="1.5" />
-            )}
-            {burned && <text x={cx} y={cy + 4} textAnchor="middle" fontSize="14">💥</text>}
-          </g>
-        );
-      }
-
-      // 스위치 (ON/OFF)
-      if (part.toggle) {
-        const [p0, p1] = positions;
-        const cx = (p0.x + p1.x) / 2;
-        const cy = (p0.y + p1.y) / 2 - 14;
-        const isOn = active;
-        return (
-          <g>
-            <line x1={p0.x} y1={p0.y} x2={cx - 14} y2={cy} stroke="#94a3b8" strokeWidth="1.5" />
-            <line x1={cx + 14} y1={cy} x2={p1.x} y2={p1.y} stroke="#94a3b8" strokeWidth="1.5" />
-            <rect x={cx - 18} y={cy - 8} width="36" height="16" rx="4" fill="#475569" stroke="#1e293b" strokeWidth="1" />
-            <circle cx={cx + (isOn ? 8 : -8)} cy={cy} r="6" fill={isOn ? "#10b981" : "#94a3b8"} stroke="white" strokeWidth="1.5" />
-            <text x={cx} y={cy - 12} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">
-              {isOn ? "ON" : "OFF"}
-            </text>
-          </g>
-        );
-      }
-
-      // 트랜지스터
-      if (part.transistor) {
-        const [pB, pC, pE] = positions;
-        const cx = (pB.x + pC.x + pE.x) / 3;
-        const cy = Math.min(pB.y, pC.y, pE.y) - 28;
-        return (
-          <g>
-            <line x1={pB.x} y1={pB.y} x2={cx - 12} y2={cy + 5} stroke="#94a3b8" strokeWidth="1.5" />
-            <line x1={pC.x} y1={pC.y} x2={cx} y2={cy + 5} stroke="#94a3b8" strokeWidth="1.5" />
-            <line x1={pE.x} y1={pE.y} x2={cx + 12} y2={cy + 5} stroke="#94a3b8" strokeWidth="1.5" />
-            <path d={`M ${cx - 16} ${cy + 5} Q ${cx - 16} ${cy - 8} ${cx} ${cy - 8} L ${cx + 16} ${cy - 8} Q ${cx + 16} ${cy + 5} ${cx + 16} ${cy + 5} Z`}
-              fill="#1e293b" stroke={part.color} strokeWidth="1.5" />
-            <text x={cx} y={cy} textAnchor="middle" fontSize="8" fontWeight="bold" fill="white" fontFamily="JetBrains Mono">
-              {part.transistor}
-            </text>
-            <text x={cx - 12} y={cy + 18} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">B</text>
-            <text x={cx} y={cy + 18} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">C</text>
-            <text x={cx + 12} y={cy + 18} textAnchor="middle" fontSize="7" fontWeight="bold" fill="#475569" fontFamily="JetBrains Mono">E</text>
-            {detail?.transistor && !detail.transistorOn && (
-              <text x={cx} y={cy - 14} textAnchor="middle" fontSize="8" fontWeight="bold" fill="#dc2626">B 미연결</text>
-            )}
-          </g>
-        );
-      }
-
-      return null;
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<ScienceLab />);
